@@ -1,0 +1,56 @@
+# docker compose up --build        then open http://localhost:8000
+x-app: &app
+  build:
+    context: .
+    args:
+      WITH_FACES: ${WITH_FACES:-1}
+  environment:
+    DATABASE_URL: postgresql://memeclip:memeclip@db:5432/memeclip
+    DATA_DIR: /data
+    MODELS_DIR: /models
+    # Values come from .env when it exists (see .env.example); otherwise the defaults here.
+    WHISPER_MODEL: ${WHISPER_MODEL:-small}
+    DEFAULT_LANGUAGE: ${DEFAULT_LANGUAGE:-}
+    ENABLE_FACES: ${ENABLE_FACES:-1}
+    FACE_MATCH_THRESHOLD: ${FACE_MATCH_THRESHOLD:-0.42}
+    W_KEYWORD: ${W_KEYWORD:-0.65}
+    W_SEMANTIC: ${W_SEMANTIC:-0.35}
+    MIN_KEYWORD: ${MIN_KEYWORD:-0.35}
+    MIN_SEMANTIC: ${MIN_SEMANTIC:-0.45}
+    MAX_CLIP_SECONDS: ${MAX_CLIP_SECONDS:-30}
+  volumes:
+    - ./data:/data          # inbox, media, gallery: visible on your machine
+    - models:/models        # downloaded models, kept between restarts
+  depends_on:
+    db:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: memeclip
+      POSTGRES_PASSWORD: memeclip
+      POSTGRES_DB: memeclip
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memeclip -d memeclip"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    <<: *app
+    ports:
+      - "8000:8000"
+
+  worker:
+    <<: *app
+    command: ["python", "-m", "app.worker"]
+
+volumes:
+  pgdata:
+  models:

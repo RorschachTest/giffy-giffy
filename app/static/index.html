@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>memeclip</title>
+<style>
+  :root {
+    --bg: #f6f4ef; --card: #ffffff; --ink: #1c1b19; --muted: #6d6a63;
+    --line: #dedad0; --accent: #d9480f; --accent-ink: #ffffff; --chip: #efece4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #151412; --card: #1f1e1b; --ink: #f1eee7; --muted: #a09c93;
+            --line: #33312c; --accent: #ff7a45; --accent-ink: #1c1b19; --chip: #2a2824; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg);
+           border-bottom: 1px solid var(--line); padding: 12px 16px; }
+  .bar { max-width: 1100px; margin: 0 auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .brand { font-weight: 700; letter-spacing: -.02em; margin-right: 4px; }
+  input, textarea, button, select { font: inherit; color: inherit; }
+  input[type=search], input[type=text], textarea {
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; width: 100%; }
+  #q { flex: 1 1 260px; font-size: 16px; }
+  button { background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+           padding: 8px 12px; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  button.on { border-color: var(--accent); color: var(--accent); }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  #status { color: var(--muted); margin: 0 0 12px; min-height: 1.4em; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+          display: flex; flex-direction: column; }
+  .card video { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #000; display: block; cursor: pointer; }
+  .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .name { font-weight: 600; overflow-wrap: anywhere; }
+  .said { color: var(--muted); font-style: italic; overflow-wrap: anywhere; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { background: var(--chip); border-radius: 999px; padding: 1px 8px; font-size: 12.5px; }
+  .chip.warn { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
+  .score { font: 12px/1.3 ui-monospace, Menlo, Consolas, monospace; color: var(--muted); }
+  .actions { display: flex; gap: 6px; margin-top: auto; padding-top: 4px; }
+  .actions button { flex: 1; padding: 6px 8px; }
+  dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink);
+           width: min(560px, calc(100vw - 32px)); padding: 18px; }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog h2 { margin: 0 0 12px; font-size: 18px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 3px; }
+  .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  table { border-collapse: collapse; width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+  td, th { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .hint { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <span class="brand">memeclip</span>
+    <input id="q" type="search" placeholder="what is said, who is in it, what happens…" autofocus>
+    <button id="tab-search" class="on">Search</button>
+    <button id="tab-review">Needs review</button>
+    <button id="tab-failed">Not found</button>
+    <button id="open-upload" class="primary">Add clip</button>
+  </div>
+</header>
+
+<main>
+  <p id="status"></p>
+  <div id="grid" class="grid"></div>
+  <div id="table"></div>
+</main>
+
+<dialog id="upload">
+  <form id="upload-form">
+    <h2>Add a clip</h2>
+    <input type="file" name="file" accept="video/*" required>
+    <label>Title, as the source wrote it</label><input type="text" name="title">
+    <label>Caption</label><input type="text" name="caption">
+    <label>Language code (hi, en, ta …). Leave empty to auto-detect</label><input type="text" name="language">
+    <label>What people call this meme (comma separated)</label><input type="text" name="folk_names">
+    <label>People in it (comma separated)</label><input type="text" name="people">
+    <label>Film or show</label><input type="text" name="source_title">
+    <p class="hint">The clip is queued. It shows up in search once the worker has processed it.</p>
+    <div class="row">
+      <button type="button" data-close>Cancel</button>
+      <button class="primary">Upload</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="edit">
+  <form id="edit-form">
+    <h2>Edit clip</h2>
+    <label>What people call this meme (comma separated)</label><input type="text" name="folk_names">
+    <label>What is said (Roman script)</label><textarea name="transcript_roman" rows="2"></textarea>
+    <label>People (comma separated)</label><input type="text" name="people">
+    <label>Film or show</label><input type="text" name="source_title">
+    <label>What happens on screen</label><textarea name="description" rows="2"></textarea>
+    <label>Reactions (comma separated)</label><input type="text" name="reactions">
+    <label>Use when (comma separated)</label><input type="text" name="use_when">
+    <label><input type="checkbox" name="reviewed"> Mark as reviewed</label>
+    <div class="row">
+      <button type="button" data-close>Cancel</button>
+      <button class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;   // textContent, never innerHTML: clip text is untrusted
+  return n;
+};
+const LISTS = ["folk_names", "people", "reactions", "use_when"];
+let mode = "search", lastQuery = "", editing = null, timer = null;
+
+async function api(path, options) {
+  const res = await fetch(path, options);
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+  return res.json();
+}
+
+function card(c) {
+  const node = el("div", "card");
+  const video = el("video");
+  video.src = c.url; video.poster = c.thumb || ""; video.preload = "none"; video.loop = true; video.playsInline = true;
+  video.onclick = () => (video.paused ? video.play() : video.pause());
+  node.append(video);
+
+  const body = el("div", "body");
+  body.append(el("div", "name", c.folk_names[0] || c.title || "(untitled)"));
+  if (c.transcript_roman) body.append(el("div", "said", "“" + c.transcript_roman + "”"));
+
+  const chips = el("div", "chips");
+  for (const p of c.people) chips.append(el("span", "chip", p));
+  if (c.source_title) chips.append(el("span", "chip", c.source_title));
+  for (const r of c.review_reasons) chips.append(el("span", "chip warn", r.replaceAll("_", " ")));
+  if (chips.children.length) body.append(chips);
+
+  const signals = `shared ${c.shares} · seen ${c.duplicates_seen}×`;
+  body.append(el("div", "score", c.score == null ? signals
+    : `score ${c.score} · keyword ${c.kw} · meaning ${c.sem} · ${signals}`));
+
+  const actions = el("div", "actions");
+  const share = el("button", "", "Share");
+  share.onclick = async () => {
+    await api(`/clips/${c.id}/share`, { method: "POST", headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ q: mode === "search" ? lastQuery : null }) });
+    try { await navigator.clipboard.writeText(location.origin + c.url); } catch {}
+    share.textContent = "Link copied";
+    setTimeout(() => (share.textContent = "Share"), 1500);
+  };
+  const edit = el("button", "", "Edit");
+  edit.onclick = () => openEdit(c.id);
+  actions.append(share, edit);
+  body.append(actions);
+  node.append(body);
+  return node;
+}
+
+function showCards(results, message) {
+  $("table").replaceChildren();
+  $("grid").replaceChildren(...results.map(card));
+  $("status").textContent = message;
+}
+
+async function runSearch() {
+  lastQuery = $("q").value.trim();
+  try {
+    const data = await api(`/search?q=${encodeURIComponent(lastQuery)}`);
+    showCards(data.results, lastQuery
+      ? `${data.count} result${data.count === 1 ? "" : "s"} for “${lastQuery}”`
+      : (data.count ? "Trending" : "No clips yet. Add one, or drop files into data/inbox."));
+  } catch (e) { $("status").textContent = "Search failed: " + e.message; }
+}
+
+async function runReview() {
+  const data = await api("/review");
+  showCards(data.results, `${data.count} clip${data.count === 1 ? "" : "s"} the pipeline was unsure about`);
+}
+
+async function runFailed() {
+  const data = await api("/queries/failed");
+  $("grid").replaceChildren();
+  $("status").textContent = "Searches that found nothing. Each one is a missing clip or a missing way to find one.";
+  const table = el("table");
+  const head = el("tr"); head.append(el("th", "", "Query"), el("th", "", "Times"));
+  table.append(head);
+  for (const q of data.queries) {
+    const tr = el("tr"); tr.append(el("td", "", q.query), el("td", "", q.times)); table.append(tr);
+  }
+  $("table").replaceChildren(table);
+}
+
+function setMode(next) {
+  mode = next;
+  for (const m of ["search", "review", "failed"]) $("tab-" + m).classList.toggle("on", m === mode);
+  ({ search: runSearch, review: runReview, failed: runFailed })[mode]();
+}
+
+async function openEdit(id) {
+  const c = await api(`/clips/${id}`);
+  editing = id;
+  const f = $("edit-form");
+  for (const k of LISTS) f[k].value = c[k].join(", ");
+  for (const k of ["transcript_roman", "source_title", "description"]) f[k].value = c[k];
+  f.reviewed.checked = false;
+  $("edit").showModal();
+}
+
+$("edit-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = e.target, body = {};
+  for (const k of LISTS) body[k] = f[k].value.split(",").map((s) => s.trim()).filter(Boolean);
+  for (const k of ["transcript_roman", "source_title", "description"]) body[k] = f[k].value;
+  if (f.reviewed.checked) body.reviewed = true;
+  await api(`/clips/${editing}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  $("edit").close();
+  setMode(mode);
+};
+
+$("upload-form").onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    const out = await api("/upload", { method: "POST", body: new FormData(e.target) });
+    $("status").textContent = `Queued ${out.queued_as}. Search again in a few seconds.`;
+    e.target.reset();
+    $("upload").close();
+  } catch (err) { $("status").textContent = "Upload failed: " + err.message; $("upload").close(); }
+};
+
+$("open-upload").onclick = () => $("upload").showModal();
+for (const b of document.querySelectorAll("[data-close]")) b.onclick = () => b.closest("dialog").close();
+for (const m of ["search", "review", "failed"]) $("tab-" + m).onclick = () => setMode(m);
+$("q").oninput = () => { clearTimeout(timer); timer = setTimeout(() => setMode("search"), 400); };
+setMode("search");
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+.pytest_cache/
+
+# Runtime data stays on your machine, not in git
+data/inbox/*
+data/media/*
+data/gallery/*
+data/processed/
+data/failed/
+!data/*/.gitkeep
