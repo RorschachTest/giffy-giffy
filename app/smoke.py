@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import sys
 
-from . import config, db, faces, search
+from . import config, db, faces, laya, search
 from .text import normalise
 
 QUERIES_FILE = config.DATA_DIR / "smoke_queries.txt"
@@ -43,6 +43,8 @@ def report_clips(conn) -> int:
         if seen:
             print(f"    faces       {seen.get('faces')} seen, {seen.get('unknown')} unknown,"
                   f" matched {seen.get('matched')}")
+        print(f"    mood        {c['reactions'] or '(none)'}   use when {c['use_when'] or '(none)'}")
+        print(f"    topics      {c['topics'] or '(none)'}")
         print(f"    review      {c['review_reasons'] or 'ok'}")
         print(f"    s_names     {c['s_names']}")
         print(f"    s_said      {c['s_said']}")
@@ -90,9 +92,11 @@ def run_queries(conn) -> tuple[int, int]:
         top = rows[0] if rows else None
         ok = bool(top) and normalise(expected) in normalise(f"{top['title']} {' '.join(top['folk_names'])}")
         passed, failed = passed + ok, failed + (not ok)
-        print(f"  {'PASS' if ok else 'FAIL'}  {query!r}  (want: {expected})")
+        print(f"  {'PASS' if ok else 'FAIL'}  {query!r}  (want: {expected})"
+              + (f"  read as {laya.query_intent(query)}" if laya.available() else ""))
         for r in rows:
-            print(f"          {r['score']:.3f}  kw {r['kw']:.2f}  sem {r['sem']:.2f}  {_label(r)}")
+            print(f"          {r['score']:.3f}  kw {r['kw']:.2f}  sem {r['sem']:.2f}"
+                  f"  tm {r['tm']:.2f}  {_label(r)}")
         if not rows:
             print("          no results")
     print(f"\nsearches: {passed} passed, {failed} failed")
@@ -102,7 +106,9 @@ def run_queries(conn) -> tuple[int, int]:
 def main() -> int:
     print(f"settings: whisper={config.WHISPER_MODEL if config.ENABLE_STT else 'off'}"
           f"  faces={'on' if config.ENABLE_FACES else 'off'}"
-          f"  embeddings={config.EMBED_BACKEND}:{config.EMBED_MODEL}")
+          f"  embeddings={config.EMBED_BACKEND}:{config.EMBED_MODEL}"
+          f"  mood={'on' if config.ENABLE_VIBE else 'off'}"
+          f"  laya={config.LAYA_URL or 'off'}")
     with db.session() as conn:
         indexed = report_clips(conn)
         broken = report_failed()

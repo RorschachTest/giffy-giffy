@@ -1,7 +1,7 @@
 """HTTP API and the small test page.
 
     GET   /                     test page
-    GET   /search?q=...         hybrid search (empty q = trending)
+    GET   /search?q=...         hybrid search (empty q = trending); `intent` is Laya's reading
     POST  /clips/{id}/share     count a share and learn the query that led to it
     GET   /clips/{id}           everything we know about one clip
     PATCH /clips/{id}           correct or add facts by hand
@@ -24,14 +24,14 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import config, db, indexing, search as search_mod
+from . import config, db, indexing, laya, search as search_mod
 from .embed import get_embedder
 
 STATIC = Path(__file__).with_name("static")
 
 # Facts a human may correct. Anything else on the row is derived or measured.
 EDITABLE_TEXT = {"title", "caption", "transcript_roman", "source_title", "description"}
-EDITABLE_LISTS = {"folk_names", "people", "reactions", "use_when", "hashtags"}
+EDITABLE_LISTS = {"folk_names", "people", "reactions", "use_when", "topics", "hashtags"}
 
 
 @asynccontextmanager
@@ -51,7 +51,7 @@ def _public(row: dict) -> dict:
     out = dict(row)
     out["url"] = f"/media/{out.pop('file')}"
     out["thumb"] = f"/media/{out['thumb']}" if out.get("thumb") else None
-    for key in ("kw", "sem", "score"):
+    for key in ("kw", "sem", "tm", "score"):
         if out.get(key) is not None:
             out[key] = round(float(out[key]), 3)
     return out
@@ -67,7 +67,8 @@ def search(q: str = "", limit: int = 24) -> dict:
     limit = max(1, min(limit, 100))
     with db.session() as conn:
         rows = search_mod.search(conn, q, limit)
-    return {"query": q, "count": len(rows), "results": [_public(r) for r in rows]}
+    return {"query": q, "intent": laya.query_intent(q) if q.strip() else {},  # cached: no second call
+            "count": len(rows), "results": [_public(r) for r in rows]}
 
 
 class ShareBody(BaseModel):
@@ -89,7 +90,7 @@ def get_clip(clip_id: int) -> dict:
             """SELECT id, file, thumb, duration, width, height, has_audio, language,
                       transcript_native, transcript_roman, title, caption, hashtags, comments,
                       source_urls, folk_names, people, source_title, description, reactions,
-                      use_when, learned_queries, s_names, s_said, s_people, s_meta, s_learned,
+                      use_when, topics, learned_queries, s_names, s_said, s_people, s_meta, s_learned,
                       duplicates_seen, shares, first_seen, needs_review, review_reasons, raw
                  FROM clips WHERE id = %s""",
             (clip_id,),
@@ -109,6 +110,7 @@ class ClipPatch(BaseModel):
     people: list[str] | None = None
     reactions: list[str] | None = None
     use_when: list[str] | None = None
+    topics: list[str] | None = None
     hashtags: list[str] | None = None
     reviewed: bool | None = None   # true clears the needs-review flag
 

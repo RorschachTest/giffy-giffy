@@ -47,6 +47,7 @@ MOODS: dict[str, tuple[str, list[str]]] = {
 }
 
 W_FACES, W_SCENE, W_DIALOGUE = 0.45, 0.40, 0.15
+W_DIALOGUE_LAYA = 0.30   # Laya reads title + dialogue together, so it earns more weight
 
 
 # --------------------------------------------------------------------------- #
@@ -100,10 +101,11 @@ def softmax(xs: list[float], scale: float = 1.0) -> list[float]:
     return [x / s for x in e]
 
 
-def combine(face: dict[str, float], scene: dict[str, float], dialogue: dict[str, float]) -> dict[str, float]:
+def combine(face: dict[str, float], scene: dict[str, float], dialogue: dict[str, float],
+            w_dialogue: float = W_DIALOGUE) -> dict[str, float]:
     """Weighted mood scores. A signal that is missing (no faces, no speech) is left
     out and the remaining weights are scaled up, so one clear signal can still win."""
-    parts = [(w, s) for w, s in ((W_FACES, face), (W_SCENE, scene), (W_DIALOGUE, dialogue)) if s]
+    parts = [(w, s) for w, s in ((W_FACES, face), (W_SCENE, scene), (w_dialogue, dialogue)) if s]
     total = sum(w for w, _ in parts) or 1.0
     return {m: round(sum(w * s.get(m, 0.0) for w, s in parts) / total, 3) for m in MOODS}
 
@@ -195,17 +197,24 @@ def dialogue_scores(said: str) -> dict[str, float]:
     return {m: round(p / best * max(0.0, max(sims)), 3) for m, p in zip(MOODS, probs)}
 
 
-def analyse(frames: list[Path], faces_per_frame: list[list[dict]] | None, said: str) -> dict:
-    """Returns the three clip fields plus the raw scores behind them."""
+def analyse(frames: list[Path], faces_per_frame: list[list[dict]] | None, said: str,
+            text_moods: dict[str, float] | None = None) -> dict:
+    """Returns the three clip fields plus the raw scores behind them.
+
+    `text_moods` is Laya's reading of title + dialogue (laya.describe_clip); when
+    given it replaces the plain embedding comparison as the text signal."""
     face, n_faces = face_scores(frames, faces_per_frame) if faces_per_frame else ({}, 0)
     scene = scene_scores(frames)
-    dialogue = dialogue_scores(said)
-    combined = combine(face, scene, dialogue)
+    if text_moods is not None:
+        dialogue, w_dialogue, source = text_moods, W_DIALOGUE_LAYA, "laya"
+    else:
+        dialogue, w_dialogue, source = dialogue_scores(said), W_DIALOGUE, "embedding"
+    combined = combine(face, scene, dialogue, w_dialogue)
     moods = pick(combined)
     face_moods = [m for m, s in sorted(face.items(), key=lambda kv: -kv[1]) if s >= 0.35][:2]
     return {
         "fields": {"description": describe_text(moods, n_faces, face_moods),
                    "reactions": moods, "use_when": use_when_for(moods)},
         "scores": {"faces": face, "n_faces": n_faces, "scene": scene,
-                   "dialogue": dialogue, "combined": combined},
+                   "dialogue": dialogue, "dialogue_source": source, "combined": combined},
     }

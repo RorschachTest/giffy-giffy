@@ -39,6 +39,7 @@
   .said { color: var(--muted); font-style: italic; overflow-wrap: anywhere; }
   .chips { display: flex; flex-wrap: wrap; gap: 4px; }
   .chip { background: var(--chip); border-radius: 999px; padding: 1px 8px; font-size: 12.5px; }
+  .chip.topic { background: transparent; border: 1px solid var(--chip); }
   .chip.warn { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
   .score { font: 12px/1.3 ui-monospace, Menlo, Consolas, monospace; color: var(--muted); }
   .actions { display: flex; gap: 6px; margin-top: auto; padding-top: 4px; }
@@ -100,6 +101,7 @@
     <label>What happens on screen</label><textarea name="description" rows="2"></textarea>
     <label>Reactions (comma separated)</label><input type="text" name="reactions">
     <label>Use when (comma separated)</label><input type="text" name="use_when">
+    <label>Topics (comma separated)</label><input type="text" name="topics">
     <label><input type="checkbox" name="reviewed"> Mark as reviewed</label>
     <div class="row">
       <button type="button" data-close>Cancel</button>
@@ -116,7 +118,7 @@ const el = (tag, cls, text) => {
   if (text != null) n.textContent = text;   // textContent, never innerHTML: clip text is untrusted
   return n;
 };
-const LISTS = ["folk_names", "people", "reactions", "use_when"];
+const LISTS = ["folk_names", "people", "reactions", "use_when", "topics"];
 let mode = "search", lastQuery = "", editing = null, timer = null;
 
 async function api(path, options) {
@@ -139,12 +141,14 @@ function card(c) {
   const chips = el("div", "chips");
   for (const p of c.people) chips.append(el("span", "chip", p));
   if (c.source_title) chips.append(el("span", "chip", c.source_title));
+  for (const r of c.reactions || []) chips.append(el("span", "chip topic", r));
+  for (const t of c.topics || []) chips.append(el("span", "chip topic", "#" + t));
   for (const r of c.review_reasons) chips.append(el("span", "chip warn", r.replaceAll("_", " ")));
   if (chips.children.length) body.append(chips);
 
   const signals = `shared ${c.shares} · seen ${c.duplicates_seen}×`;
   body.append(el("div", "score", c.score == null ? signals
-    : `score ${c.score} · keyword ${c.kw} · meaning ${c.sem} · ${signals}`));
+    : `score ${c.score} · keyword ${c.kw} · meaning ${c.sem} · topic ${c.tm} · ${signals}`));
 
   const actions = el("div", "actions");
   const share = el("button", "", "Share");
@@ -175,6 +179,8 @@ async function runSearch() {
     const data = await api(`/search?q=${encodeURIComponent(lastQuery)}`);
     showCards(data.results, lastQuery
       ? `${data.count} result${data.count === 1 ? "" : "s"} for “${lastQuery}”`
+        + (Object.keys(data.intent || {}).length
+           ? " · read as " + Object.entries(data.intent).map(([k, p]) => `${k} ${p}`).join(", ") : "")
       : (data.count ? "Trending" : "No clips yet. Add one, or drop files into data/inbox."));
   } catch (e) { $("status").textContent = "Search failed: " + e.message; }
 }

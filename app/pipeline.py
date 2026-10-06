@@ -3,7 +3,7 @@
     file + optional sidecar JSON
         -> probe -> exact-duplicate check -> keyframes -> near-duplicate check
         -> web-ready copy + thumbnail
-        -> speech to text -> faces -> names found in captions -> mood (local models)
+        -> speech to text -> faces -> names found in captions -> topics + text mood (Laya) -> mood (local models)
         -> review flags -> searchable columns + embedding
 """
 from __future__ import annotations
@@ -16,12 +16,12 @@ from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
-from . import config, faces, indexing, media, vibe
+from . import config, faces, indexing, laya, media, vibe
 from .text import has_devanagari, to_roman
 
 log = logging.getLogger("pipeline")
 
-LIST_FIELDS = ("hashtags", "comments", "folk_names", "people", "reactions", "use_when")
+LIST_FIELDS = ("hashtags", "comments", "folk_names", "people", "reactions", "use_when", "topics")
 MAX_COMMENTS = 20
 
 
@@ -73,6 +73,7 @@ def load_meta(sidecar: Path | None) -> dict:
         "source_title": (raw.get("source_title") or "").strip(),
         "reactions": _as_list(raw.get("reactions")),
         "use_when": _as_list(raw.get("use_when")),
+        "topics": _as_list(raw.get("topics")),
         "transcript": (raw.get("transcript") or "").strip(),
     }
     return meta
@@ -109,6 +110,11 @@ def _union(a: list[str], b: list[str], limit: int | None = None) -> list[str]:
             seen.add(x.lower())
             out.append(x)
     return out[:limit] if limit else out
+
+
+def pipeline_topics(given: list[str], found: list[str]) -> list[str]:
+    """Topics from the sidecar or a human come first; Laya's are added after them."""
+    return _union(given, found)
 
 
 def merge_duplicate(conn, clip_id: int, meta: dict) -> None:
@@ -203,12 +209,12 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
                                       language, transcript_native, transcript_roman,
                                       title, caption, hashtags, comments, source_urls,
                                       folk_names, people, source_title, description,
-                                      reactions, use_when)
+                                      reactions, use_when, topics)
                    VALUES (%(sha)s, %(phash)s, %(file)s, %(thumb)s, %(duration)s, %(width)s,
                            %(height)s, %(has_audio)s, %(language)s, %(native)s, %(roman)s,
                            %(title)s, %(caption)s, %(hashtags)s, %(comments)s, %(source_urls)s,
                            %(folk_names)s, %(people)s, %(source_title)s, %(description)s,
-                           %(reactions)s, %(use_when)s)
+                           %(reactions)s, %(use_when)s, %(topics)s)
                    RETURNING id""",
                 {
                     "sha": sha, "phash": phash, "file": out_video.name, "thumb": out_thumb.name,
@@ -221,6 +227,7 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
                     "folk_names": meta["folk_names"], "people": meta["people"],
                     "source_title": meta["source_title"], "description": meta["description"],
                     "reactions": meta["reactions"], "use_when": meta["use_when"],
+                    "topics": meta["topics"],
                 },
             ).fetchone()["id"]
 
@@ -247,10 +254,23 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
                     reasons.append("unknown_faces")
             raw["people_evidence"] = people
 
+            # --- topics + text mood (Laya): sidecar topics are kept, Laya adds ----
+            text_moods = None
+            if laya.available():
+                try:
+                    said = laya.describe_clip(meta, native, roman, list(people))
+                    raw["laya"] = said["scores"]
+                    text_moods = said["mood"]
+                    topics = pipeline_topics(meta["topics"], said["topics"])
+                    conn.execute("UPDATE clips SET topics = %s WHERE id = %s", (topics, clip_id))
+                except Exception:
+                    log.exception("laya failed for %s", video.name)
+                    reasons.append("laya_failed")
+
             # --- mood: only fills what the sidecar left empty --------------------
             if config.ENABLE_VIBE:
                 try:
-                    found = vibe.analyse(frames, detected, native)
+                    found = vibe.analyse(frames, detected, native, text_moods)
                     raw["vibe"] = found["scores"]
                     filled = vibe.fill_missing({k: meta[k] for k in found["fields"]}, found["fields"])
                     conn.execute(

@@ -112,7 +112,8 @@ Every clip showing that face inherits the name.
 | The meme's street name     | `kokilaben meme`            | `s_names`  | folk names, cleaned title                    |
 | Half-remembered dialogue   | `rasode me kon tha`         | `s_said`   | speech to text, romanised                    |
 | Person or source           | `nana patekar`, `chintu`    | `s_people` | faces, names in captions, aliases, film/show |
-| What happens, when to use  | `mom caught me`             | `s_meta` + embedding | description, reactions, use-when, caption, comments |
+| What happens, when to use  | `mom caught me`             | `s_meta` + embedding | description, reactions, use-when, topics, caption, comments |
+| What it is about / the mood | `when boss shouts at me`   | `tm` (topics, reactions) | Laya reads the query's topic and mood |
 | A query that worked before | anything                    | `s_learned`| queries that ended in a share                |
 
 Text goes through one `normalise()` function (`app/text.py`) at indexing time
@@ -128,6 +129,34 @@ from them in `app/indexing.py`. After changing a rule:
 docker compose exec worker python -m app.reindex
 ```
 
+## Mood and topics
+
+Every clip gets three kinds of derived metadata, all from local models. The
+sidecar or the Edit button always wins over them.
+
+| Field | From |
+|---|---|
+| `reactions` (mood) | facial expressions (FER+), keyframes vs mood sentences (CLIP), and the title + dialogue read by Laya (`app/vibe.py`) |
+| `use_when`, `description` | a fixed table and a template per mood |
+| `topics` | [Laya](https://github.com/NandhaKishorM/laya): a choice over `app/laya.py` `TOPICS`, on the title alone and on title + dialogue; kept when either is confident |
+
+Laya is a decision model, not a chat model: it answers typed questions
+(choice, score, yes/no) about text with a probability per option and never
+generates text. It runs as the `laya` service; its sandbox and API docs are at
+http://localhost:8001/docs. At search time it reads what the query is about
+(`/search` returns this as `intent`), and clips whose topics or reactions match
+score `tm`. With Laya off or down, ingest flags `laya_failed` and search works
+as before.
+
+To add Laya topics and redo the mood on clips indexed before it existed:
+
+```bash
+docker compose exec worker python -m app.reindex --laya --vibe --replace
+```
+
+`--replace` overwrites hand-edited mood fields too; leave it off to fill only
+empty ones.
+
 ## Layout
 
 ```
@@ -136,6 +165,8 @@ app/media.py      ffmpeg: probe, keyframes, audio, web copy, picture hash
 app/stt.py        speech to text (faster-whisper)
 app/faces.py      face gallery, matching, unknown-face grouping (InsightFace)
 app/embed.py      text embeddings (fastembed, multilingual MiniLM)
+app/vibe.py       mood: facial expressions, CLIP scene, dialogue tone
+app/laya.py       Laya client: clip topics + text mood, search intent
 app/pipeline.py   the per-clip assembly line, duplicates, review flags
 app/indexing.py   facts -> searchable columns
 app/search.py     hybrid ranking, share feedback
@@ -159,9 +190,8 @@ the plumbing and the ranking logic, not model quality.
 
 ## Not built yet
 
-- Describing what happens on screen automatically (a vision model step). For
-  now `description`, `reactions` and `use_when` come from the sidecar or the
-  Edit button.
+- A real description of what happens on screen. `description` is only a
+  template built from the mood signals.
 - Reading on-screen text (OCR) and recognising songs or sound effects.
 - Audio fingerprints for duplicates. Picture hashes catch re-encodes and
   resizes, not crops or heavy watermarks.

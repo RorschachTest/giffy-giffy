@@ -285,3 +285,24 @@ def test_14_worker_processes_the_inbox():
     assert top("rgb bars")
     row = clip(top("rgb bars")[0])
     assert row["people"] == ["Paresh Rawal"] and "babu bai" in row["s_people"]
+
+
+def test_15_topics_from_laya_rank_search(monkeypatch):
+    """Laya says the query is about 'work'; the clip tagged work comes first even
+    though no word of the query is in it."""
+    from app import laya
+
+    with db.session() as conn:
+        conn.execute("UPDATE clips SET topics = '{work}' WHERE id = %s", (STATE["silent"],))
+        indexing.refresh(conn, STATE["silent"])
+    query = "zzq vvx boss daanta"
+    monkeypatch.setattr(laya, "query_intent", lambda q: {})
+    assert STATE["silent"] not in top(query)
+    monkeypatch.setattr(laya, "query_intent", lambda q: {"work": 0.8})
+    with db.session() as conn:
+        rows = search.search(conn, query, log_query=False)
+    assert rows[0]["id"] == STATE["silent"] and rows[0]["tm"] == pytest.approx(0.8)
+
+
+def test_16_sidecar_topics_are_kept_and_merged():
+    assert pipeline.pipeline_topics(["Work", "late"], ["work", "money"]) == ["Work", "late", "money"]
