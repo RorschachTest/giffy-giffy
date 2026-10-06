@@ -18,6 +18,7 @@ import tempfile
 os.environ["EMBED_BACKEND"] = "hash"
 os.environ["ENABLE_STT"] = "0"
 os.environ["ENABLE_FACES"] = "0"
+os.environ["ENABLE_VIBE"] = "0"
 os.environ.setdefault("DATA_DIR", tempfile.mkdtemp(prefix="memeclip_test_data_"))
 os.environ.setdefault("MODELS_DIR", tempfile.mkdtemp(prefix="memeclip_test_models_"))
 if os.getenv("TEST_DATABASE_URL"):

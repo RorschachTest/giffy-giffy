@@ -3,7 +3,7 @@
     file + optional sidecar JSON
         -> probe -> exact-duplicate check -> keyframes -> near-duplicate check
         -> web-ready copy + thumbnail
-        -> speech to text -> faces -> names found in captions
+        -> speech to text -> faces -> names found in captions -> mood (local models)
         -> review flags -> searchable columns + embedding
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
-from . import config, faces, indexing, media
+from . import config, faces, indexing, media, vibe
 from .text import has_devanagari, to_roman
 
 log = logging.getLogger("pipeline")
@@ -231,9 +231,11 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
             for name in from_text:
                 people.setdefault(name, "metadata")
 
+            detected = None
             if config.ENABLE_FACES:
                 engine = faces.get_engine()
-                seen = faces.record_faces(conn, clip_id, [engine.detect(f) for f in frames])
+                detected = [engine.detect(f) for f in frames]
+                seen = faces.record_faces(conn, clip_id, detected)
                 raw["faces"] = {"faces": seen["faces"], "unknown": seen["unknown"],
                                 "matched": {k: round(v, 3) for k, v in seen["people"].items()}}
                 for name, score in seen["people"].items():
@@ -244,6 +246,20 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
                 if seen["unknown"] and not seen["people"]:
                     reasons.append("unknown_faces")
             raw["people_evidence"] = people
+
+            # --- mood: only fills what the sidecar left empty --------------------
+            if config.ENABLE_VIBE:
+                try:
+                    found = vibe.analyse(frames, detected, native)
+                    raw["vibe"] = found["scores"]
+                    filled = vibe.fill_missing({k: meta[k] for k in found["fields"]}, found["fields"])
+                    conn.execute(
+                        "UPDATE clips SET description = %s, reactions = %s, use_when = %s WHERE id = %s",
+                        (filled["description"], filled["reactions"], filled["use_when"], clip_id),
+                    )
+                except Exception:
+                    log.exception("mood extraction failed for %s", video.name)
+                    reasons.append("vibe_failed")
 
             if not (native or meta["title"] or meta["caption"] or meta["folk_names"]):
                 reasons.append("no_context")

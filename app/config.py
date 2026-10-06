@@ -36,6 +36,15 @@ EMBED_BACKEND = os.getenv("EMBED_BACKEND", "fastembed")   # fastembed | hash (te
 EMBED_MODEL = os.getenv("EMBED_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 EMBED_DIM = int(os.getenv("EMBED_DIM", "384"))
 
+# Emotional context (mood / use-when / description), all local models, no LLM:
+# facial expressions (FER+), scene mood (CLIP zero-shot), dialogue tone (text embedder)
+ENABLE_VIBE = _bool("ENABLE_VIBE", True)
+VIBE_CLIP_IMAGE = os.getenv("VIBE_CLIP_IMAGE", "Qdrant/clip-ViT-B-32-vision")
+VIBE_CLIP_TEXT = os.getenv("VIBE_CLIP_TEXT", "Qdrant/clip-ViT-B-32-text")
+FER_URL = os.getenv("FER_URL", "https://github.com/onnx/models/raw/main/validated/vision/"
+                    "body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx")
+VIBE_MIN_SCORE = float(os.getenv("VIBE_MIN_SCORE", "0.30"))   # combined score to keep a mood
+
 # Faces
 ENABLE_FACES = _bool("ENABLE_FACES", True)
 FACE_MODEL = os.getenv("FACE_MODEL", "buffalo_l")

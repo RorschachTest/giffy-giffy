@@ -49,6 +49,7 @@ class FaceEngine:
                 "embedding": [float(x) for x in f.normed_embedding],
                 "det_score": float(f.det_score),
                 "size": size,
+                "bbox": [x1, y1, x2, y2],
             })
         return sorted(found, key=lambda d: -d["size"])
 
