@@ -1,8 +1,7 @@
 # Face recognition. Kept separate because it is the heaviest part to build.
-# Licence note: the InsightFace code is MIT, but its pretrained model packs
-# (buffalo_l etc.) are published for non-commercial research use. Fine for a
-# prototype; sort out a licence or swap the model before a commercial launch.
+# Licence note: the InsightFace code is MIT, but its pretrained models
+# (buffalo_l etc.) are for non-commercial research only. Fine for a prototype;
+# sort out a licence or swap the model before a commercial launch.
 numpy<2
-insightface==0.7.3
+insightface>=0.7.3
 onnxruntime>=1.17
-opencv-python-headless

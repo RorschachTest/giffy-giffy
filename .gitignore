@@ -4,10 +4,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 
-# Runtime data stays on your machine, not in git
-data/inbox/*
-data/media/*
-data/gallery/*
-data/processed/
-data/failed/
-!data/*/.gitkeep
+# Runtime data stays on your machine, not in git: clips, photos, logs.
+data/**
+!data/**/
+!data/**/.gitkeep

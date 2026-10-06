@@ -23,6 +23,25 @@ If the image fails to build on the face-recognition step, skip that part for
 now: set `WITH_FACES=0` and `ENABLE_FACES=0` in `.env` and build again.
 Everything else works without it.
 
+To build, start and check everything in one go (the output is also saved to
+`data/smoke_test.log`):
+
+```bash
+bash scripts/smoke_test.sh
+```
+
+It waits for the clips in `data/inbox/` to be processed, then prints what was
+heard, who was recognised and what was flagged for each clip. If
+`data/smoke_queries.txt` exists, it also runs those searches and reports
+pass or fail. One search per line:
+
+```
+kya karu main => kya karu mein
+```
+
+The left side is what you would type; the right side is words from the title
+of the clip you expect on top.
+
 ## Add clips
 
 Either use **Add clip** on the page, or copy files into `data/inbox/`.
@@ -122,6 +141,7 @@ app/indexing.py   facts -> searchable columns
 app/search.py     hybrid ranking, share feedback
 app/worker.py     watches data/inbox
 app/api.py        HTTP API + test page
+app/smoke.py      report + test searches used by scripts/smoke_test.sh
 app/schema.sql    tables (Postgres + pgvector + pg_trgm)
 ```
 
