@@ -42,8 +42,12 @@
   .chip.topic { background: transparent; border: 1px solid var(--chip); }
   .chip.warn { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
   .score { font: 12px/1.3 ui-monospace, Menlo, Consolas, monospace; color: var(--muted); }
-  .actions { display: flex; gap: 6px; margin-top: auto; padding-top: 4px; }
-  .actions button { flex: 1; padding: 6px 8px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 4px; }
+  .actions button, .actions a { flex: 1 1 45%; padding: 6px 8px; text-align: center; }
+  .actions a { background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+               color: inherit; text-decoration: none; }
+  .actions button.primary { flex-basis: 100%; }
+  .card video[draggable=true] { cursor: grab; }
   dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink);
            width: min(560px, calc(100vw - 32px)); padding: 18px; }
   dialog::backdrop { background: rgba(0,0,0,.45); }
@@ -127,11 +131,61 @@ async function api(path, options) {
   return res.json();
 }
 
+// A web page cannot put a video file on the clipboard: browsers only accept text,
+// HTML and PNG there. So the card offers the closest real equivalents:
+//   Send          the .mp4 file itself, through the system share sheet (Web Share)
+//   drag          drop the .mp4 file into Finder, a folder or a chat (Chrome / Edge)
+//   Download      save the .mp4
+//   Copy link     the old behaviour
+// Each one counts as a share, so the query that found the clip is learned.
+function fileName(c) {
+  const base = (c.folk_names[0] || c.title || `clip-${c.id}`).toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || `clip-${c.id}`;
+  return `${base}.mp4`;
+}
+
+const fileCache = new Map();   // clip id -> Promise<File>
+function clipFile(c) {
+  if (!fileCache.has(c.id)) {
+    fileCache.set(c.id, fetch(c.url).then((r) => {
+      if (!r.ok) throw new Error(r.statusText);
+      return r.blob();
+    }).then((b) => new File([b], fileName(c), { type: "video/mp4" }))
+      .catch((e) => { fileCache.delete(c.id); throw e; }));
+  }
+  return fileCache.get(c.id);
+}
+
+const canSendFiles = !!(navigator.canShare &&
+  navigator.canShare({ files: [new File([new Blob()], "x.mp4", { type: "video/mp4" })] }));
+
+function recordShare(c) {
+  return api(`/clips/${c.id}/share`, { method: "POST", headers: { "Content-Type": "application/json" },
+                                       body: JSON.stringify({ q: mode === "search" ? lastQuery : null }) })
+    .catch(() => {});
+}
+
+function flash(button, text, back) {
+  button.textContent = text;
+  setTimeout(() => (button.textContent = back), 1600);
+}
+
 function card(c) {
   const node = el("div", "card");
   const video = el("video");
   video.src = c.url; video.poster = c.thumb || ""; video.preload = "none"; video.loop = true; video.playsInline = true;
   video.onclick = () => (video.paused ? video.play() : video.pause());
+  // Dragging the video out drops the .mp4 file (Chrome / Edge read DownloadURL).
+  video.draggable = true;
+  video.title = "Click to play. Drag out to drop the video file.";
+  video.ondragstart = (e) => {
+    const abs = new URL(c.url, location.href).href;
+    e.dataTransfer.setData("DownloadURL", `video/mp4:${fileName(c)}:${abs}`);
+    e.dataTransfer.setData("text/uri-list", abs);
+    e.dataTransfer.setData("text/plain", abs);
+    e.dataTransfer.effectAllowed = "copy";
+    recordShare(c);
+  };
   node.append(video);
 
   const body = el("div", "body");
@@ -151,17 +205,45 @@ function card(c) {
     : `score ${c.score} · keyword ${c.kw} · meaning ${c.sem} · topic ${c.tm} · ${signals}`));
 
   const actions = el("div", "actions");
-  const share = el("button", "", "Share");
-  share.onclick = async () => {
-    await api(`/clips/${c.id}/share`, { method: "POST", headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ q: mode === "search" ? lastQuery : null }) });
-    try { await navigator.clipboard.writeText(location.origin + c.url); } catch {}
-    share.textContent = "Link copied";
-    setTimeout(() => (share.textContent = "Share"), 1500);
+
+  if (canSendFiles) {
+    const send = el("button", "primary", "Send video");
+    // Fetch the file before the click lands: some browsers (Safari) only allow the
+    // share sheet while the click is still "fresh", so there is no time to download then.
+    const warm = () => clipFile(c).catch(() => {});
+    send.onpointerenter = warm; send.onfocus = warm; send.ontouchstart = warm;
+    send.onclick = async () => {
+      try {
+        const file = await clipFile(c);
+        await navigator.share({ files: [file], title: c.folk_names[0] || c.title || "meme" });
+        recordShare(c);
+        flash(send, "Sent", "Send video");
+      } catch (e) {
+        if (e.name === "AbortError") return;                 // closed the share sheet
+        if (e.name === "NotAllowedError") flash(send, "Tap again to send", "Send video");
+        else flash(send, "Could not send", "Send video");
+      }
+    };
+    actions.append(send);
+  }
+
+  const download = el("a", "", "Download");
+  download.href = c.url;
+  download.download = fileName(c);
+  download.onclick = () => { recordShare(c); };
+
+  const copy = el("button", "", "Copy link");
+  copy.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(new URL(c.url, location.href).href);
+      recordShare(c);
+      flash(copy, "Link copied", "Copy link");
+    } catch { flash(copy, "Copy failed", "Copy link"); }
   };
+
   const edit = el("button", "", "Edit");
   edit.onclick = () => openEdit(c.id);
-  actions.append(share, edit);
+  actions.append(download, copy, edit);
   body.append(actions);
   node.append(body);
   return node;
