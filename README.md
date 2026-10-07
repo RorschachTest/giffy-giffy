@@ -212,6 +212,35 @@ the plumbing and the ranking logic, not model quality.
   resizes, not crops or heavy watermarks.
 - Automatic collection from sources, moderation, accounts.
 
+## Public access (Cloudflare Tunnel)
+
+The app is published at `https://memeclip.aiwroteit.dev` through a Cloudflare
+Tunnel: an outgoing connection from this machine to Cloudflare, so no router
+ports are open and HTTPS is Cloudflare's. `cloudflared` runs as a macOS system
+service, separate from Docker, and starts at boot.
+
+1. Cloudflare dashboard, **Zero Trust > Networks > Tunnels**: create a tunnel
+   and copy its connector token.
+2. Install the service (the token is stored in a root-only file):
+
+   ```bash
+   brew install cloudflared
+   sudo cloudflared service install <TOKEN>
+   ```
+
+3. In the tunnel, **Public Hostname**: `memeclip` . `aiwroteit.dev`, service
+   **HTTP**, URL `localhost:8000` (the service runs on the host, so it reaches
+   the api container through its published port).
+4. In `.env`: `PUBLIC_BASE_URL=https://memeclip.aiwroteit.dev`, then
+   `docker compose up -d api worker`.
+5. **Zero Trust > Access > Applications**: one self-hosted app for
+   `memeclip.aiwroteit.dev` allowing only your email, and one for the paths
+   `c/*`, `media/*`, `oembed` with a Bypass policy, so share links and chat
+   previews stay public while upload and edit need a login.
+
+Logs: `/Library/Logs/com.cloudflare.cloudflared.err.log`. To rotate the token:
+`sudo cloudflared service uninstall`, then install again with the new one.
+
 ## Running it somewhere other than your laptop
 
 The same `docker compose up` works on any single Linux server; no GPU is
