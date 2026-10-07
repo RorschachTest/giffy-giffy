@@ -204,7 +204,6 @@ function card(c) {
   };
   // Dragging the video out drops the .mp4 file (Chrome / Edge read DownloadURL).
   video.draggable = true;
-  video.title = "Hover to play · click for sound · drag out to drop the video file";
   video.ondragstart = (e) => {
     const abs = new URL(c.url, location.href).href;
     e.dataTransfer.setData("DownloadURL", `video/mp4:${fileName(c)}:${abs}`);
