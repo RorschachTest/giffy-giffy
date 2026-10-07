@@ -33,7 +33,7 @@
   .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
           display: flex; flex-direction: column; }
-  .card video { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #000; display: block; cursor: pointer; }
+  .card video { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #000; display: block; cursor: default; }
   .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
   .name { font-weight: 600; overflow-wrap: anywhere; }
   .said { color: var(--muted); font-style: italic; overflow-wrap: anywhere; }
@@ -47,7 +47,6 @@
   .actions a { background: var(--card); border: 1px solid var(--line); border-radius: 8px;
                color: inherit; text-decoration: none; }
   .actions button.primary { flex-basis: 100%; }
-  .card video[draggable=true] { cursor: grab; }
   dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink);
            width: min(560px, calc(100vw - 32px)); padding: 18px; }
   dialog::backdrop { background: rgba(0,0,0,.45); }
@@ -170,14 +169,42 @@ function flash(button, text, back) {
   setTimeout(() => (button.textContent = back), 1600);
 }
 
+// Hover to play: a card's clip plays (muted) while the pointer is over it and
+// stops when it leaves. Only one clip plays at a time. Click toggles sound.
+// Touch screens have no hover, so a tap plays or stops instead.
+let playing = null;
+
+function playOnly(video) {
+  if (playing && playing !== video) stopClip(playing);
+  playing = video;
+  video.play().catch(() => {});   // muted autoplay is always allowed
+}
+
+function stopClip(video) {
+  video.pause();
+  video.currentTime = 0;
+  video.muted = true;
+  if (playing === video) playing = null;
+}
+
 function card(c) {
   const node = el("div", "card");
   const video = el("video");
   video.src = c.url; video.poster = c.thumb || ""; video.preload = "none"; video.loop = true; video.playsInline = true;
-  video.onclick = () => (video.paused ? video.play() : video.pause());
+  video.muted = true;
+  video.onpointerenter = (e) => { if (e.pointerType === "mouse") playOnly(video); };
+  video.onpointerleave = (e) => { if (e.pointerType === "mouse") stopClip(video); };
+  video.onclick = (e) => {
+    if (e.pointerType && e.pointerType !== "mouse") {          // tap on a touch screen
+      if (video.paused) playOnly(video); else stopClip(video);
+    } else {                                                  // mouse: already playing, toggle sound
+      video.muted = !video.muted;
+      if (video.paused) playOnly(video);
+    }
+  };
   // Dragging the video out drops the .mp4 file (Chrome / Edge read DownloadURL).
   video.draggable = true;
-  video.title = "Click to play. Drag out to drop the video file.";
+  video.title = "Hover to play · click for sound · drag out to drop the video file";
   video.ondragstart = (e) => {
     const abs = new URL(c.url, location.href).href;
     e.dataTransfer.setData("DownloadURL", `video/mp4:${fileName(c)}:${abs}`);
@@ -250,6 +277,7 @@ function card(c) {
 }
 
 function showCards(results, message) {
+  playing = null;
   $("table").replaceChildren();
   $("grid").replaceChildren(...results.map(card));
   $("status").textContent = message;
