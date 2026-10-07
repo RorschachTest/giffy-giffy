@@ -25,7 +25,7 @@ from .db import vec
 from .embed import embed_one
 from .text import normalise
 
-COLUMNS = """id, file, thumb, duration, title, transcript_roman, transcript_native, folk_names,
+COLUMNS = """id, left(sha256, 10) AS share_id, file, thumb, duration, title, transcript_roman, transcript_native, folk_names,
              people, source_title, description, reactions, use_when, topics, hashtags,
              shares, duplicates_seen, needs_review, review_reasons, first_seen"""
 

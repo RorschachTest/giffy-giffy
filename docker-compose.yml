@@ -6,6 +6,7 @@ x-app: &app
       WITH_FACES: ${WITH_FACES:-1}
   environment:
     DATABASE_URL: postgresql://memeclip:memeclip@db:5432/memeclip
+    PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
     DATA_DIR: /data
     MODELS_DIR: /models
     # Values come from .env when it exists (see .env.example); otherwise the defaults here.

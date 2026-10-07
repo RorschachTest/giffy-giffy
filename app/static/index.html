@@ -136,7 +136,7 @@ async function api(path, options) {
 //   Send          the .mp4 file itself, through the system share sheet (Web Share)
 //   drag          drop the .mp4 file into Finder, a folder or a chat (Chrome / Edge)
 //   Download      save the .mp4
-//   Copy link     the old behaviour
+//   Copy link     the short share link (/c/<id>); chat apps unfurl it as the video
 // Each one counts as a share, so the query that found the clip is learned.
 function fileName(c) {
   const base = (c.folk_names[0] || c.title || `clip-${c.id}`).toLowerCase()
@@ -181,8 +181,8 @@ function card(c) {
   video.ondragstart = (e) => {
     const abs = new URL(c.url, location.href).href;
     e.dataTransfer.setData("DownloadURL", `video/mp4:${fileName(c)}:${abs}`);
-    e.dataTransfer.setData("text/uri-list", abs);
-    e.dataTransfer.setData("text/plain", abs);
+    e.dataTransfer.setData("text/uri-list", c.share_url || abs);
+    e.dataTransfer.setData("text/plain", c.share_url || abs);
     e.dataTransfer.effectAllowed = "copy";
     recordShare(c);
   };
@@ -235,7 +235,7 @@ function card(c) {
   const copy = el("button", "", "Copy link");
   copy.onclick = async () => {
     try {
-      await navigator.clipboard.writeText(new URL(c.url, location.href).href);
+      await navigator.clipboard.writeText(c.share_url || new URL(c.url, location.href).href);
       recordShare(c);
       flash(copy, "Link copied", "Copy link");
     } catch { flash(copy, "Copy failed", "Copy link"); }

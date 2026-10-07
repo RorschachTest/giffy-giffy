@@ -9,6 +9,11 @@ def _bool(name: str, default: bool) -> bool:
     return os.getenv(name, "1" if default else "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+# The public https address people reach this server on (https://clips.example.com).
+# Share links and their video previews use it; chat apps cannot unfurl localhost.
+# Empty = the address each request came in on (fine for local testing).
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
+
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://memeclip:memeclip@db:5432/memeclip")
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))

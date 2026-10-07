@@ -9,6 +9,7 @@
     GET   /queries/failed       searches that found nothing
     POST  /upload               drop a clip into the inbox from the browser
     GET   /media/...            the clip files
+    GET   /c/{share_id}         share link: video page that chat apps unfurl (share.py)
 """
 from __future__ import annotations
 
@@ -19,12 +20,12 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import config, db, indexing, laya, search as search_mod
+from . import config, db, indexing, laya, search as search_mod, share as share_mod
 from .embed import get_embedder
 
 STATIC = Path(__file__).with_name("static")
@@ -45,10 +46,13 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="memeclip", lifespan=lifespan)
 config.ensure_dirs()
 app.mount("/media", StaticFiles(directory=str(config.MEDIA_DIR)), name="media")
+app.include_router(share_mod.router)
 
 
-def _public(row: dict) -> dict:
+def _public(row: dict, request: Request | None = None) -> dict:
     out = dict(row)
+    if out.get("share_id"):
+        out["share_url"] = share_mod.share_url(share_mod.public_base(request), out["share_id"])
     out["url"] = f"/media/{out.pop('file')}"
     out["thumb"] = f"/media/{out['thumb']}" if out.get("thumb") else None
     for key in ("kw", "sem", "tm", "score"):
@@ -63,12 +67,12 @@ def index() -> FileResponse:
 
 
 @app.get("/search")
-def search(q: str = "", limit: int = 24) -> dict:
+def search(request: Request, q: str = "", limit: int = 24) -> dict:
     limit = max(1, min(limit, 100))
     with db.session() as conn:
         rows = search_mod.search(conn, q, limit)
     return {"query": q, "intent": laya.query_intent(q) if q.strip() else {},  # cached: no second call
-            "count": len(rows), "results": [_public(r) for r in rows]}
+            "count": len(rows), "results": [_public(r, request) for r in rows]}
 
 
 class ShareBody(BaseModel):
@@ -84,10 +88,10 @@ def share(clip_id: int, body: ShareBody) -> dict:
 
 
 @app.get("/clips/{clip_id}")
-def get_clip(clip_id: int) -> dict:
+def get_clip(clip_id: int, request: Request) -> dict:
     with db.session() as conn:
         row = conn.execute(
-            """SELECT id, file, thumb, duration, width, height, has_audio, language,
+            """SELECT id, left(sha256, 10) AS share_id, file, thumb, duration, width, height, has_audio, language,
                       transcript_native, transcript_roman, title, caption, hashtags, comments,
                       source_urls, folk_names, people, source_title, description, reactions,
                       use_when, topics, learned_queries, s_names, s_said, s_people, s_meta, s_learned,
@@ -97,7 +101,7 @@ def get_clip(clip_id: int) -> dict:
         ).fetchone()
     if row is None:
         raise HTTPException(404, "no such clip")
-    return _public(row)
+    return _public(row, request)
 
 
 class ClipPatch(BaseModel):
@@ -116,7 +120,7 @@ class ClipPatch(BaseModel):
 
 
 @app.patch("/clips/{clip_id}")
-def patch_clip(clip_id: int, patch: ClipPatch) -> dict:
+def patch_clip(clip_id: int, patch: ClipPatch, request: Request) -> dict:
     changes = patch.model_dump(exclude_none=True)
     reviewed = changes.pop("reviewed", None)
     updates: dict = {}
@@ -137,18 +141,18 @@ def patch_clip(clip_id: int, patch: ClipPatch) -> dict:
         if not done:
             raise HTTPException(404, "no such clip")
         indexing.refresh(conn, clip_id)
-    return get_clip(clip_id)
+    return get_clip(clip_id, request)
 
 
 @app.get("/review")
-def review(limit: int = 50) -> dict:
+def review(request: Request, limit: int = 50) -> dict:
     with db.session() as conn:
         rows = conn.execute(
             f"""SELECT {search_mod.COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS score
                   FROM clips WHERE needs_review ORDER BY first_seen DESC LIMIT %s""",
             (max(1, min(limit, 200)),),
         ).fetchall()
-    return {"count": len(rows), "results": [_public(r) for r in rows]}
+    return {"count": len(rows), "results": [_public(r, request) for r in rows]}
 
 
 @app.get("/queries/failed")

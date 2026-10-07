@@ -306,3 +306,37 @@ def test_15_topics_from_laya_rank_search(monkeypatch):
 
 def test_16_sidecar_topics_are_kept_and_merged():
     assert pipeline.pipeline_topics(["Work", "late"], ["work", "money"]) == ["Work", "late", "money"]
+
+
+def test_17_share_links_unfurl_as_video(monkeypatch):
+    """The link a person pastes is /c/<id>; its page carries what chat apps read
+    to draw the clip as a video."""
+    from fastapi.testclient import TestClient
+
+    from app import api
+
+    with TestClient(api.app) as client:
+        hit = client.get("/search", params={"q": "rasode me kon tha"}).json()["results"][0]
+        share_id = hit["share_id"]
+        assert len(share_id) == 10 and hit["share_url"] == f"http://testserver/c/{share_id}"
+
+        page = client.get(f"/c/{share_id}")
+        assert page.status_code == 200
+        body = page.text
+        assert f'<meta property="og:video" content="http://testserver/media/{hit["url"].split("/")[-1]}">' in body
+        assert '<meta property="og:video:type" content="video/mp4">' in body
+        assert '<meta name="twitter:card" content="player">' in body
+        assert f'content="http://testserver/c/{share_id}/embed"' in body
+        assert "application/json+oembed" in body
+
+        assert client.get(f"/c/{share_id}/embed").status_code == 200
+        o = client.get("/oembed", params={"url": f"http://testserver/c/{share_id}"}).json()
+        assert o["type"] == "video" and f"/c/{share_id}/embed" in o["html"]
+
+        assert client.get("/c/zzzzzzzzzz").status_code == 404
+        assert client.get("/c/abc").status_code == 404
+        assert client.get("/oembed", params={"url": "https://example.com/x"}).status_code == 404
+
+        monkeypatch.setattr(config, "PUBLIC_BASE_URL", "https://clips.example.com/")
+        assert client.get(f"/clips/{hit['id']}").json()["share_url"] == f"https://clips.example.com/c/{share_id}"
+        assert 'content="https://clips.example.com/media/' in client.get(f"/c/{share_id}").text

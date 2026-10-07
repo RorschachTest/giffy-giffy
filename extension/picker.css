@@ -1,0 +1,35 @@
+:root {
+  --bg: #fbfaf7; --panel: #ffffff; --ink: #1c1b19; --muted: #6d6a63;
+  --line: #e2ded4; --accent: #d9480f; --tile: #000;
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #151412; --panel: #1f1e1b; --ink: #f1eee7; --muted: #a09c93; --line: #34322d; --accent: #ff7a45; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--panel); color: var(--ink); }
+body.popup { width: 420px; height: 500px; }
+.panel { height: 100%; display: grid; grid-template-rows: auto auto 1fr auto; }
+.top { padding: 12px 12px 6px; }
+#q { width: 100%; font: inherit; font-size: 15px; color: inherit; background: var(--bg);
+     border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; outline: none; }
+#q:focus { border-color: var(--accent); }
+.status { padding: 0 14px 6px; color: var(--muted); font-size: 12.5px; min-height: 1.4em;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grid { overflow-y: auto; padding: 2px 12px 12px; display: grid; gap: 8px;
+        grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; }
+.tile { all: unset; cursor: pointer; display: grid; gap: 4px; border-radius: 9px; padding: 3px;
+        border: 2px solid transparent; min-width: 0; }
+.tile[aria-selected="true"] { border-color: var(--accent); }
+.tile:focus-visible { border-color: var(--accent); }
+.media { position: relative; aspect-ratio: 4 / 3; background: var(--tile); border-radius: 6px; overflow: hidden; }
+.media img, .media video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.name { font-size: 12px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.foot { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+        padding: 8px 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px; }
+.foot a { color: var(--accent); text-decoration: none; }
+kbd { font: 11px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-bottom-width: 2px;
+      border-radius: 4px; padding: 0 4px; margin-right: 2px; }
+.empty { grid-column: 1 / -1; color: var(--muted); padding: 24px 4px; text-align: center; }
+@media (prefers-reduced-motion: reduce) { .media video { display: none; } }

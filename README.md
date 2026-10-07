@@ -157,6 +157,19 @@ docker compose exec worker python -m app.reindex --laya --vibe --replace
 `--replace` overwrites hand-edited mood fields too; leave it off to fill only
 empty ones.
 
+## Share links and the browser extension
+
+Every clip has a short link, `/c/<first 10 hex of its SHA-256>`
+(`app/share.py`). The page behind it plays the clip and carries the tags chat
+apps read to draw a preview: `og:video`, a `twitter:player` card and oEmbed.
+**Copy link** on the test page copies it, and so does the browser extension in
+[`extension/`](extension/README.md), which pastes it straight into WhatsApp Web,
+Slack or Discord with **Alt+Shift+M**.
+
+Chat apps fetch previews from the internet, so set `PUBLIC_BASE_URL` to the
+server's public https address; with `localhost` the link works but no app can
+preview it.
+
 ## Layout
 
 ```
@@ -167,6 +180,8 @@ app/faces.py      face gallery, matching, unknown-face grouping (InsightFace)
 app/embed.py      text embeddings (fastembed, multilingual MiniLM)
 app/vibe.py       mood: facial expressions, CLIP scene, dialogue tone
 app/laya.py       Laya client: clip topics + text mood, search intent
+app/share.py      share links /c/<id>: video page, preview tags, oEmbed
+extension/        browser extension: search and paste share links
 app/pipeline.py   the per-clip assembly line, duplicates, review flags
 app/indexing.py   facts -> searchable columns
 app/search.py     hybrid ranking, share feedback
