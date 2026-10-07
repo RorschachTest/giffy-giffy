@@ -100,6 +100,20 @@ services:
       retries: 3
       start_period: 15m
 
+  # Public access through a Cloudflare Tunnel: no open ports, free HTTPS.
+  # Off unless you ask for it:  docker compose --profile public up -d
+  # Needs CLOUDFLARE_TUNNEL_TOKEN in .env (Zero Trust > Networks > Tunnels) and,
+  # in that tunnel, a public hostname pointing at http://api:8000.
+  tunnel:
+    image: cloudflare/cloudflared:2026.9.0
+    profiles: ["public"]
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on:
+      - api
+    restart: unless-stopped
+
 volumes:
   pgdata:
   models:
