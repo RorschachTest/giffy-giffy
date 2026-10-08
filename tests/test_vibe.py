@@ -40,3 +40,35 @@ def test_existing_values_win():
     cur = {"description": "mine", "reactions": [], "use_when": ["when x"]}
     found = {"description": "theirs", "reactions": ["shocked"], "use_when": ["when y"]}
     assert vibe.fill_missing(cur, found) == {"description": "mine", "reactions": ["shocked"], "use_when": ["when x"]}
+
+
+def test_fer_download_is_atomic(tmp_path, monkeypatch):
+    """An interrupted or truncated download must not leave a file at the final path."""
+    import urllib.request
+
+    from app import vibe
+
+    target = tmp_path / "ferplus" / "emotion-ferplus-8.onnx"
+
+    def cut_off(url, dest):
+        open(dest, "wb").write(b"x" * 1000)
+        raise OSError("connection reset")
+    monkeypatch.setattr(urllib.request, "urlretrieve", cut_off)
+    try:
+        vibe._download_fer(target)
+        assert False, "expected the cut-off download to fail"
+    except OSError:
+        pass
+    assert not target.exists() and not target.with_suffix(".part").exists()
+
+    monkeypatch.setattr(urllib.request, "urlretrieve", lambda url, dest: open(dest, "wb").write(b"x" * 1000))
+    try:
+        vibe._download_fer(target)       # finishes, but far too small to be the model
+        assert False, "expected the too-small file to be rejected"
+    except OSError as exc:
+        assert "expected about 35 MB" in str(exc)
+    assert not target.exists()
+
+    monkeypatch.setattr(urllib.request, "urlretrieve", lambda url, dest: open(dest, "wb").write(b"x" * vibe.FER_MIN_BYTES))
+    vibe._download_fer(target)
+    assert target.exists() and not target.with_suffix(".part").exists()

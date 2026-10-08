@@ -20,18 +20,30 @@ from psycopg.types.json import Jsonb
 from . import config, db, faces, indexing, laya, media, pipeline, vibe
 
 
+def _report_failed(step: str, failed: list[int], total: int) -> None:
+    if failed:
+        print(f"{step}: {len(failed)} of {total} clip(s) skipped (ids {failed}); fix the cause and run again",
+              file=sys.stderr)
+
+
 def backfill_laya() -> None:
     """Ask Laya about every clip; its topics are added after any already there."""
     with db.session() as conn:
         rows = conn.execute("SELECT * FROM clips ORDER BY id").fetchall()
+    failed = []
     for r in rows:
-        found = laya.describe_clip(r, r["transcript_native"], r["transcript_roman"], r["people"])
-        topics = pipeline.pipeline_topics(r["topics"], found["topics"])
-        raw = {**(r["raw"] or {}), "laya": found["scores"]}
-        with db.session() as conn:
-            conn.execute("UPDATE clips SET topics = %s, raw = %s WHERE id = %s",
-                         (topics, Jsonb(raw), r["id"]))
-        print(f"laya: clip {r['id']} {r['title']!r}: {topics}")
+        try:
+            found = laya.describe_clip(r, r["transcript_native"], r["transcript_roman"], r["people"])
+            topics = pipeline.pipeline_topics(r["topics"], found["topics"])
+            raw = {**(r["raw"] or {}), "laya": found["scores"]}
+            with db.session() as conn:
+                conn.execute("UPDATE clips SET topics = %s, raw = %s WHERE id = %s",
+                             (topics, Jsonb(raw), r["id"]))
+            print(f"laya: clip {r['id']} {r['title']!r}: {topics}")
+        except Exception as exc:   # one bad clip must not stop the rest
+            failed.append(r["id"])
+            print(f"laya: clip {r['id']} {r['title']!r} SKIPPED: {exc}", file=sys.stderr)
+    _report_failed("laya", failed, len(rows))
 
 
 def backfill_vibe(replace: bool = False) -> None:
@@ -45,23 +57,32 @@ def backfill_vibe(replace: bool = False) -> None:
                   FROM clips WHERE {where} ORDER BY id"""
         ).fetchall()
     engine = faces.get_engine() if config.ENABLE_FACES else None
+    failed = []
     for r in rows:
-        with tempfile.TemporaryDirectory(prefix="memeclip_") as tmp:
-            frames = media.extract_keyframes(config.MEDIA_DIR / r["file"], Path(tmp),
-                                             r["duration"], config.KEYFRAMES)
-            detected = [engine.detect(f) for f in frames] if engine else None
-            text_moods = None
-            if laya.available():
-                text_moods = laya.describe_clip(r, r["transcript_native"], r["transcript_roman"],
-                                                r["people"])["mood"]
-            found = vibe.analyse(frames, detected, r["transcript_native"], text_moods)
-        filled = found["fields"] if replace else vibe.fill_missing(r, found["fields"])
-        raw = {**(r["raw"] or {}), "vibe": found["scores"]}
-        with db.session() as conn:
-            conn.execute("UPDATE clips SET description=%s, reactions=%s, use_when=%s, raw=%s WHERE id=%s",
-                         (filled["description"], filled["reactions"], filled["use_when"],
-                          Jsonb(raw), r["id"]))
-        print(f"vibe: clip {r['id']} {r['title']!r}: {filled['reactions']}")
+        try:
+            with tempfile.TemporaryDirectory(prefix="memeclip_") as tmp:
+                frames = media.extract_keyframes(config.MEDIA_DIR / r["file"], Path(tmp),
+                                                 r["duration"], config.KEYFRAMES)
+                detected = [engine.detect(f) for f in frames] if engine else None
+                text_moods = None
+                if laya.available():
+                    try:   # Laya down: fall back to the plain text signal, as at ingest
+                        text_moods = laya.describe_clip(r, r["transcript_native"], r["transcript_roman"],
+                                                        r["people"])["mood"]
+                    except Exception as exc:
+                        print(f"vibe: clip {r['id']} without Laya: {exc}", file=sys.stderr)
+                found = vibe.analyse(frames, detected, r["transcript_native"], text_moods)
+            filled = found["fields"] if replace else vibe.fill_missing(r, found["fields"])
+            raw = {**(r["raw"] or {}), "vibe": found["scores"]}
+            with db.session() as conn:
+                conn.execute("UPDATE clips SET description=%s, reactions=%s, use_when=%s, raw=%s WHERE id=%s",
+                             (filled["description"], filled["reactions"], filled["use_when"],
+                              Jsonb(raw), r["id"]))
+            print(f"vibe: clip {r['id']} {r['title']!r}: {filled['reactions']}")
+        except Exception as exc:   # one bad clip must not stop the rest
+            failed.append(r["id"])
+            print(f"vibe: clip {r['id']} {r['title']!r} SKIPPED: {exc}", file=sys.stderr)
+    _report_failed("vibe", failed, len(rows))
 
 
 def main() -> None:

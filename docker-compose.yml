@@ -61,13 +61,17 @@ services:
   worker:
     <<: *app
     command: ["python", "-m", "app.worker"]
-    # Wait for Laya so the first clips get topics. The api does not wait: search
-    # works without Laya and picks it up as soon as it answers.
+    # Laya is optional (empty LAYA_URL turns it off, and a down Laya only flags a
+    # clip `laya_failed`), so the worker must start without it. `required: false`
+    # still starts Laya first and waits for it when it can; if Laya never becomes
+    # healthy (no network, bad build) the worker runs anyway. Clips ingested
+    # before Laya is ready can be filled later: python -m app.reindex --laya
     depends_on:
       db:
         condition: service_healthy
       laya:
         condition: service_healthy
+        required: false
 
   # Laya decision model (https://github.com/NandhaKishorM/laya), built from its
   # release tag because there is no published image. CPU only. The first start

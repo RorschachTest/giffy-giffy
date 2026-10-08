@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import urllib.request
 from functools import lru_cache
 from pathlib import Path
@@ -54,16 +55,39 @@ W_DIALOGUE_LAYA = 0.30   # Laya reads title + dialogue together, so it earns mor
 # Models (each loaded once, lazily)
 # --------------------------------------------------------------------------- #
 
+FER_MIN_BYTES = 20_000_000   # the real file is ~35 MB; anything much smaller is a cut-off download
+
+
+def _download_fer(path) -> None:
+    """Download to a temp file and move it into place only when complete, so an
+    interrupted download can never leave a half file where the real one belongs."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".part")
+    log.info("downloading FER+ to %s", path)
+    try:
+        urllib.request.urlretrieve(config.FER_URL, tmp)
+        if tmp.stat().st_size < FER_MIN_BYTES:
+            raise OSError(f"FER+ download is only {tmp.stat().st_size} bytes; expected about 35 MB")
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 @lru_cache(maxsize=1)
 def _fer():
     import onnxruntime as ort
 
     path = config.MODELS_DIR / "ferplus" / "emotion-ferplus-8.onnx"
-    if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        log.info("downloading FER+ to %s", path)
-        urllib.request.urlretrieve(config.FER_URL, path)
-    return ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+    for attempt in (1, 2):
+        if not path.exists():
+            _download_fer(path)
+        try:
+            return ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        except Exception:
+            if attempt == 2:
+                raise
+            log.warning("FER+ model at %s did not load; downloading it again", path)
+            path.unlink(missing_ok=True)   # a corrupt file would otherwise stay forever
 
 
 @lru_cache(maxsize=1)
