@@ -12,6 +12,8 @@ x-app: &app
     EXPLAIN_BACKEND: ${EXPLAIN_BACKEND:-off}
     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     EXPLAIN_CLAUDE_MODEL: ${EXPLAIN_CLAUDE_MODEL:-claude-haiku-4-5-20251001}
+    EXPLAIN_LOCAL_URL: ${EXPLAIN_LOCAL_URL:-http://host.docker.internal:11434}
+    EXPLAIN_LOCAL_MODEL: ${EXPLAIN_LOCAL_MODEL:-qwen2.5vl:7b}
     DATA_DIR: /data
     MODELS_DIR: /models
     # Values come from .env when it exists (see .env.example); otherwise the defaults here.

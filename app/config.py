@@ -72,6 +72,8 @@ EXPLAIN_FRAMES = int(os.getenv("EXPLAIN_FRAMES", "4"))
 EXPLAIN_TIMEOUT = float(os.getenv("EXPLAIN_TIMEOUT", "180"))
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 EXPLAIN_CLAUDE_MODEL = os.getenv("EXPLAIN_CLAUDE_MODEL", "claude-haiku-4-5-20251001")
+EXPLAIN_LOCAL_URL = os.getenv("EXPLAIN_LOCAL_URL", "http://host.docker.internal:11434")
+EXPLAIN_LOCAL_MODEL = os.getenv("EXPLAIN_LOCAL_MODEL", "qwen2.5vl:7b")
 
 # Faces
 ENABLE_FACES = _bool("ENABLE_FACES", True)
