@@ -70,6 +70,8 @@ LAYA_QUERY_MIN = float(os.getenv("LAYA_QUERY_MIN", "0.3"))  # probability to tre
 EXPLAIN_BACKEND = os.getenv("EXPLAIN_BACKEND", "off")
 EXPLAIN_FRAMES = int(os.getenv("EXPLAIN_FRAMES", "4"))
 EXPLAIN_TIMEOUT = float(os.getenv("EXPLAIN_TIMEOUT", "180"))
+EXPLAIN_LOCAL_URL = os.getenv("EXPLAIN_LOCAL_URL", "http://host.docker.internal:11434")
+EXPLAIN_LOCAL_MODEL = os.getenv("EXPLAIN_LOCAL_MODEL", "qwen2.5vl:7b")
 
 # Faces
 ENABLE_FACES = _bool("ENABLE_FACES", True)
