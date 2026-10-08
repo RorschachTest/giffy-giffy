@@ -72,7 +72,7 @@ def _public(row: dict, request: Request | None = None) -> dict:
 @app.get("/", response_class=HTMLResponse)
 def index(theme: str | None = None) -> HTMLResponse:
     names = theme_names()
-    chosen = next((t for t in (theme, config.UI_THEME, "viza") if t in names), names[0])
+    chosen = next((t for t in (theme, config.UI_THEME, "sticker") if t in names), names[0])
     css = [STATIC / "base.css", THEMES / f"{chosen}.css", STATIC / "index.html"]
     version = str(int(max(f.stat().st_mtime for f in css)))   # new file -> new URL, no stale CSS
     page = (STATIC / "index.html").read_text(encoding="utf-8")

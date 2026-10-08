@@ -6,7 +6,7 @@ skeleton, video and subtitle positioning, Curate show/hide, accessibility).
 
 ## Choose the theme
 
-- In code: `UI_THEME = os.getenv("UI_THEME") or "viza"` in `app/config.py`
+- In code: `UI_THEME = os.getenv("UI_THEME") or "sticker"` in `app/config.py`
 - Or per machine: `UI_THEME=picker` in `.env`, then `docker compose up -d api`
 - Preview without changing anything: `http://localhost:8000/?theme=sticker`
 - List them: `GET /themes`
@@ -14,7 +14,7 @@ skeleton, video and subtitle positioning, Curate show/hide, accessibility).
 | Theme | Look |
 |---|---|
 | `picker` | Dark screening room; straight to the search; subtitle yellow as the only accent |
-| `sticker` | high-end-visual-design: glass nav, double-bezel clips, tilted posters with mood stickers |
+| `sticker` (default) | high-end-visual-design: glass nav, double-bezel clips, tilted posters with mood stickers |
 | `viza` | Gen Z colour blocks (magenta, cobalt, yellow, plum); clips play inside purple scenes |
 
 ## Add a theme
