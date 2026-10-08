@@ -4,187 +4,277 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#0b0c10">
+<meta name="theme-color" content="#050505">
 <title>memeclip</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Geist:wght@300;400;500;600;700&family=Pixelify+Sans:wght@500&display=swap">
 <style>
-  /* Dark screening room. The page is the dark; the clips are the light.
-     One accent, the yellow of burned-in subtitles, used only where the page
-     speaks: dialogue on a playing clip, what the search understood, focus.
-     Depth: hairlines and small surface steps, no shadows. Base unit 4px. */
+  /* Sticker wall (Gen Z pass, after the Dribbble "scroll-stopping banner" collage):
+     clips are tilted posters with their mood as a chunky coloured sticker; every
+     mood owns one saturated colour, used for its sticker and its quick search.
+     Built on the high-end-visual-design trial below. */
+  /* high-end-visual-design trial: "Ethereal Glass" texture + "Asymmetrical Bento" layout.
+     OLED black with two soft glows (subtitle gold, deep emerald), glass only on
+     fixed layers (nav, dialogs), every clip in a double bezel: an outer tray and
+     an inner core with concentric radii. The yellow of burned-in subtitles stays
+     the one accent: dialogue on a playing clip, what the search understood, focus. */
   :root {
     color-scheme: dark;
-    --room: #0b0c10;          /* the page */
-    --raised: #12141a;        /* header, dialogs, tiles at rest */
-    --lifted: #1a1d25;        /* hover, pressed */
-    --inset: #08090c;         /* inputs: they receive content, so they sit lower */
-    --line: rgba(255, 255, 255, .08);
-    --line-strong: rgba(255, 255, 255, .16);
-    --text: #ecebe6;
-    --text-2: #b4b6bf;
-    --text-3: #868994;        /* 4.8:1 on --room */
+    --void: #050505;
+    --tray: rgba(255, 255, 255, .035);      /* outer bezel */
+    --core: #0d0d0f;                        /* inner core */
+    --core-hi: #141417;
+    --hair: rgba(255, 255, 255, .09);
+    --hair-strong: rgba(255, 255, 255, .16);
+    --glass: rgba(18, 18, 21, .62);
+    --text: #f2f1ee;
+    --text-2: #b9b9c0;
+    --text-3: #8b8b95;                      /* 5.6:1 on --void */
     --subtitle: #ffd54a;
-    --on-subtitle: #17130a;
     --danger: #ff8a7a;
-    --font: "Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-    --r-sm: 8px; --r-md: 12px; --r-pill: 999px;
-    --ease: cubic-bezier(.23, 1, .32, 1);
+    --font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --display: "Bricolage Grotesque", "Geist", ui-sans-serif, system-ui, sans-serif;
+    --pixel: "Pixelify Sans", ui-monospace, Menlo, monospace;
+    --cream: #f4ede4;                       /* the bright search pill */
+    --spring: cubic-bezier(.32, .72, 0, 1);
+    --r-shell: 28px; --pad-shell: 6px; --r-core: 22px; --pad-core: 8px; --r-media: 14px;
   }
   * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
-  body { margin: 0; background: var(--room); color: var(--text); font: 400 15px/1.5 var(--font);
+  html { -webkit-text-size-adjust: 100%; background: var(--void); }
+  body { margin: 0; min-height: 100dvh; background: var(--void); color: var(--text); font: 400 15px/1.55 var(--font);
          -webkit-font-smoothing: antialiased; padding-bottom: env(safe-area-inset-bottom); }
+  /* two soft glows and a whisper of grain, on fixed layers that never scroll */
+  body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(42rem 30rem at 12% -6%, rgba(255, 196, 64, .13), transparent 70%),
+                radial-gradient(46rem 34rem at 96% 108%, rgba(24, 160, 128, .12), transparent 70%); }
+  body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: .035;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"); }
+  .stage { position: relative; z-index: 2; }
   button, input, textarea { font: inherit; color: inherit; }
   button { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   .frame, .pill { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-  svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8;
+  svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.25;
           stroke-linecap: round; stroke-linejoin: round; flex: none; }
-  :focus-visible { outline: 2px solid var(--subtitle); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--subtitle); outline-offset: 3px; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-  /* ---------- header ---------- */
-  header { background: var(--raised); border-bottom: 1px solid var(--line);
-           padding: 12px 16px; padding-top: max(12px, env(safe-area-inset-top)); }
-  .bar { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .brand { font-weight: 700; font-size: 19px; letter-spacing: -.03em; margin: 0 4px 0 0; line-height: 1; }
-  .brand { order: 1; }
-  .search { position: relative; flex: 1 1 320px; order: 2; }
-  .search svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
-  #q { width: 100%; height: 48px; background: var(--inset); border: 1px solid var(--line); border-radius: var(--r-md);
-       padding: 0 16px 0 44px; font-size: 17px; outline: none; transition: border-color .15s; }
-  #q::placeholder { color: var(--text-3); }
-  #q:focus { border-color: var(--subtitle); }
-  .bar-end { display: flex; align-items: center; gap: 8px; order: 3; }
-  /* phones: name and actions on one row, the search gets a full row of its own */
-  @media (max-width: 640px) { .bar-end { order: 2; margin-left: auto; } .search { order: 3; flex-basis: 100%; } }
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px;
-         padding: 0 14px; border-radius: var(--r-sm); border: 1px solid var(--line-strong);
-         background: transparent; color: var(--text); text-decoration: none; white-space: nowrap;
-         transition: background-color .15s, border-color .15s, transform .12s var(--ease); }
-  .btn:hover { background: var(--lifted); }
-  .btn:active { transform: scale(.97); }
-  .btn.solid { background: var(--text); color: #111; border-color: var(--text); font-weight: 600; }
-  .btn.solid:hover { background: #fff; }
-  .btn.quiet { border-color: transparent; color: var(--text-2); }
-  .btn.quiet[aria-pressed="true"] { color: var(--subtitle); }
+  /* ---------- floating island nav (glass is fine here: it is sticky) ---------- */
+  .island-wrap { position: sticky; top: calc(14px + env(safe-area-inset-top)); z-index: 10; display: flex; justify-content: center;
+                 padding: 14px 16px 0; pointer-events: none; }
+  .island { pointer-events: auto; display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 18px;
+            border-radius: 999px; background: var(--glass); border: 1px solid var(--hair);
+            backdrop-filter: blur(24px) saturate(140%); -webkit-backdrop-filter: blur(24px) saturate(140%);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); max-width: calc(100vw - 32px); }
+  .wordmark { font-weight: 600; letter-spacing: -.03em; font-size: 16px; margin-right: 10px; }
 
-  /* ---------- under the search ---------- */
-  main { max-width: 1160px; margin: 0 auto; padding: 16px 16px 48px; }
-  .tabs { display: none; gap: 4px; margin-bottom: 12px; }
-  body.curate .tabs { display: flex; }
-  .tab { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-2); padding: 8px 12px; min-height: 40px; }
-  .tab[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--subtitle); }
-  .quick { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 8px; scrollbar-width: none; }
+  /* pills, and the button-in-button trailing knob */
+  .cta { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 5px 5px 5px 18px;
+         border-radius: 999px; border: 1px solid var(--hair-strong); background: rgba(255, 255, 255, .03);
+         color: var(--text); text-decoration: none; white-space: nowrap; font-weight: 500;
+         transition: background-color .5s var(--spring), border-color .5s var(--spring), transform .4s var(--spring); }
+  .cta:hover { background: rgba(255, 255, 255, .07); border-color: rgba(255, 255, 255, .24); }
+  .cta:active { transform: scale(.98); }
+  .cta .knob { width: 34px; height: 34px; border-radius: 999px; display: grid; place-items: center;
+               background: rgba(255, 255, 255, .08); transition: transform .5s var(--spring), background-color .5s var(--spring); }
+  .cta:hover .knob { transform: translate(2px, -1px) scale(1.05); background: rgba(255, 255, 255, .14); }
+  .cta.light { background: var(--cream); color: #0a0a0a; border-color: var(--cream); }
+  .cta.light .knob { background: rgba(0, 0, 0, .08); }
+  .cta.light:hover { background: #fff; }
+  .cta.ghost { border-color: transparent; background: transparent; padding: 5px 14px; color: var(--text-2); }
+  .cta.ghost:hover { color: var(--text); background: rgba(255, 255, 255, .05); }
+  .cta.ghost[aria-pressed="true"] { color: var(--subtitle); }
+  .cta.round { padding: 5px; }
+  .cta.done { border-color: var(--subtitle); color: var(--subtitle); }
+
+  /* ---------- hero ---------- */
+  main { max-width: 1240px; margin: 0 auto; padding: 0 24px 96px; }
+  .hero { padding: 88px 0 40px; display: grid; gap: 22px; max-width: 760px; }
+  .eyebrow { font-family: var(--pixel); letter-spacing: .08em !important; justify-self: start; border-radius: 999px; padding: 5px 12px; font-size: 10.5px; font-weight: 500;
+             letter-spacing: .2em; text-transform: uppercase; color: var(--text-2); border: 1px solid var(--hair);
+             background: var(--tray); }
+  .hero h1 { margin: 0; font-family: var(--display); font-size: clamp(44px, 8vw, 92px); line-height: .9;
+             letter-spacing: -.04em; font-weight: 800; text-wrap: balance; }
+  .hero h1 .tag { display: inline-block; font-size: .32em; letter-spacing: -.01em; vertical-align: .9em; margin-left: .2em;
+                  padding: .18em .55em; border-radius: 999px; background: #ff5fa2; color: #160810; transform: rotate(6deg);
+                  font-weight: 700; }
+  .hero p.lede { margin: 0; color: var(--text-2); font-size: 17px; max-width: 52ch; text-wrap: pretty; }
+  /* the search sits in its own double bezel */
+  .shell { border-radius: var(--r-shell); padding: var(--pad-shell); background: var(--tray); border: 1px solid var(--hair); }
+  .core { border-radius: var(--r-core); background: var(--core); box-shadow: inset 0 1px 1px rgba(255, 255, 255, .08); }
+  .search { position: relative; }
+  .search .core { display: flex; align-items: center; background: var(--cream); color: #121212; border-radius: 999px; }
+  .search .shell { border-radius: 999px; }
+  .search svg { position: absolute; left: 22px; color: var(--text-3); pointer-events: none; width: 20px; height: 20px; }
+  #q { width: 100%; height: 64px; background: transparent; border: 0; border-radius: 999px; color: #121212; font-weight: 500;
+       padding: 0 22px 0 56px; font-size: 19px; letter-spacing: -.01em; outline: none; }
+  #q::placeholder { color: #6b6560; }
+  .search svg { color: #6b6560 !important; }
+  .search .shell { transition: border-color .5s var(--spring), background-color .5s var(--spring); }
+  .search .shell:focus-within { border-color: #ff5fa2; background: rgba(255, 95, 162, .12); }
+
+  .tabs { display: none; gap: 4px; padding: 4px; border-radius: 999px; background: var(--tray); border: 1px solid var(--hair);
+          justify-self: start; }
+  body.curate .tabs { display: inline-flex; }
+  .tab { background: none; border: 0; border-radius: 999px; color: var(--text-2); padding: 0 16px; min-height: 38px;
+         transition: background-color .4s var(--spring), color .4s var(--spring); }
+  .tab[aria-pressed="true"] { color: #0a0a0a; background: var(--text); }
+  .quick { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px; margin: -2px; }
   .quick::-webkit-scrollbar { display: none; }
-  .pill { flex: none; min-height: 36px; padding: 0 14px; border-radius: var(--r-pill); background: transparent;
-          border: 1px solid var(--line-strong); color: var(--text-2); transition: background-color .15s, color .15s; }
-  .pill:hover { background: var(--lifted); color: var(--text); }
-  .pill[aria-pressed="true"] { background: var(--lifted); color: var(--text); border-color: var(--text-3); }
-  /* what the search understood, set like a subtitle line */
-  #status { min-height: 24px; margin: 0 0 16px; color: var(--text-3); font-size: 14px; }
+  .pill { flex: none; min-height: 38px; padding: 0 16px; border-radius: 999px; background: var(--tray);
+          border: 1px solid var(--hair); color: var(--text-2);
+          transition: background-color .4s var(--spring), color .4s var(--spring), border-color .4s var(--spring); }
+  .pill { font-family: var(--display); font-weight: 700; letter-spacing: -.01em; }
+  .pill::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 999px; margin-right: 8px;
+                  background: var(--mood, var(--text-3)); vertical-align: 1px; }
+  .pill:hover { color: var(--text); border-color: var(--mood, var(--hair-strong)); }
+  .pill[aria-pressed="true"] { color: #111; background: var(--mood, var(--text)); border-color: var(--mood, var(--text)); }
+  .pill[aria-pressed="true"]::before { background: #111; }
+  #status { min-height: 24px; margin: 0; color: var(--text-3); font-size: 14px; }
   #status .read { color: var(--subtitle); font-weight: 500; }
-  #status .dim { color: var(--text-3); }
 
-  /* ---------- grid and tiles ---------- */
-  .grid { display: grid; gap: 24px 16px; grid-template-columns: repeat(auto-fill, minmax(268px, 1fr)); }
-  @media (max-width: 560px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; } }
-  .card { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
-  .frame { position: relative; aspect-ratio: 4 / 3; background: #000; border-radius: var(--r-md); overflow: hidden;
-           border: 1px solid var(--line); cursor: pointer; transition: border-color .15s; }
-  .frame:hover, .frame:focus-visible, .frame.live { border-color: var(--line-strong); }
-  .frame video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
-  .sub { position: absolute; left: 12px; right: 12px; bottom: 14px; text-align: center; pointer-events: none;
-         color: var(--subtitle); font-weight: 600; font-size: 15px; line-height: 1.3; opacity: 0; transform: translateY(4px);
-         transition: opacity .18s var(--ease), transform .18s var(--ease);
+  /* ---------- asymmetric bento of double-bezel clips ---------- */
+  .grid { display: grid; gap: 20px; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-flow: dense; margin-top: 8px; }
+  .card.feature { grid-column: span 2; grid-row: span 2; }
+  @media (max-width: 1023px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 767px) {   /* mobile collapse: one column, no spans */
+    main { padding: 0 16px 64px; } .hero { padding: 48px 0 28px; }
+    .grid { grid-template-columns: 1fr; gap: 16px; } .card.feature { grid-column: auto; grid-row: auto; }
+  }
+  .card { min-width: 0; transition: transform .7s var(--spring); }
+  @media (min-width: 768px) {
+    .card:nth-child(4n+1) { transform: rotate(-1.6deg); }
+    .card:nth-child(4n+2) { transform: rotate(1.2deg) translateY(10px); }
+    .card:nth-child(4n+3) { transform: rotate(-.8deg) translateY(-6px); }
+    .card:nth-child(4n)   { transform: rotate(1.8deg); }
+    .card.feature { transform: rotate(-1deg); }
+    .card:hover, .card:focus-within { transform: rotate(0) translateY(-4px) scale(1.01); z-index: 3; position: relative; }
+  }
+  .card .core { background: #101012; }
+  .stick { position: absolute; left: 12px; bottom: 12px; z-index: 2; pointer-events: none; max-width: calc(100% - 24px);
+           font-family: var(--display); font-weight: 800; font-size: clamp(18px, 2.2vw, 26px); line-height: .95;
+           letter-spacing: -.03em; text-transform: uppercase; color: #111; background: var(--mood, #f4ede4);
+           padding: .32em .5em .28em; border-radius: 10px; transform: rotate(-4deg); transform-origin: left bottom;
+           box-shadow: 0 0 0 2px #111, 3px 4px 0 0 #111; transition: transform .6s var(--spring), opacity .4s var(--spring); }
+  .card.feature .stick { font-size: clamp(26px, 3.6vw, 46px); left: 18px; bottom: 18px; }
+  .card:hover .stick { transform: rotate(-7deg) scale(1.04); }
+  .frame.live .stick { opacity: 0; }               /* make room for the subtitle while it plays */
+  .badge { position: absolute; top: 10px; left: 10px; z-index: 2; pointer-events: none; font-family: var(--pixel);
+           font-size: 12px; letter-spacing: .04em; padding: 3px 9px; border-radius: 999px; background: #f4ede4; color: #111;
+           transform: rotate(-2deg); }
+  .card > .shell { height: 100%; }
+  .card .core { padding: var(--pad-core); display: flex; flex-direction: column; gap: 12px; height: 100%; }
+  .frame { position: relative; aspect-ratio: 4 / 3; background: #000; border-radius: var(--r-media); overflow: hidden;
+           cursor: pointer; isolation: isolate; }
+  .card.feature .frame { aspect-ratio: auto; flex: 1; min-height: 300px; }
+  .frame video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block;
+                 transition: transform .9s var(--spring); }
+  .frame:hover video, .frame.live video { transform: scale(1.015); }
+  .frame::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+                  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
+  .sub { position: absolute; left: 14px; right: 14px; bottom: 18px; text-align: center; pointer-events: none; z-index: 1;
+         color: var(--subtitle); font-weight: 600; font-size: 15px; line-height: 1.3; opacity: 0; transform: translateY(6px);
+         transition: opacity .45s var(--spring), transform .45s var(--spring);
          text-shadow: 0 0 3px #000, 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
          display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card.feature .sub { font-size: 19px; bottom: 26px; }
   .frame.live .sub { opacity: 1; transform: none; }
-  .snd { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; border-radius: var(--r-pill);
-         display: grid; place-items: center; background: rgba(0, 0, 0, .6); color: var(--text);
-         opacity: 0; transition: opacity .15s; pointer-events: none; }
+  .snd { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 999px; z-index: 1;
+         display: grid; place-items: center; background: rgba(0, 0, 0, .55); color: var(--text);
+         opacity: 0; transition: opacity .4s var(--spring); pointer-events: none; }
   .frame.live .snd { opacity: 1; }
-  .bar-time { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--subtitle);
+  .bar-time { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--subtitle); z-index: 1;
               transform-origin: left; transform: scaleX(0); opacity: 0; }
   .frame.live .bar-time { opacity: 1; }
-  .row { display: flex; align-items: flex-start; gap: 8px; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 2px 4px 4px 8px; }
   .titles { flex: 1; min-width: 0; }
-  .name { font-weight: 600; line-height: 1.3; overflow: hidden; overflow-wrap: anywhere; text-wrap: pretty;
-          display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  .by { color: var(--text-3); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .acts { display: flex; gap: 4px; flex: none; }
-  .acts .btn { min-height: 40px; min-width: 40px; padding: 0 12px; }
-  .acts .btn.iconly { padding: 0; width: 40px; }
-  @media (max-width: 560px) { .acts .btn .lbl { display: none; } .acts .btn { padding: 0; width: 40px; } }
-  /* touch screens: 44px targets; with two buttons (Copy + Send) they move under the name */
-  @media (pointer: coarse) { .acts .btn, .acts .btn.iconly { min-height: 44px; min-width: 44px; } }
-  @media (max-width: 560px) { .row:has(.acts .btn + .btn) { flex-wrap: wrap; }
-                              .row:has(.acts .btn + .btn) .titles { flex-basis: 100%; } }
-  .btn.done { border-color: var(--subtitle); color: var(--subtitle); }
+  .name { font-family: var(--display); font-weight: 700; font-size: 16px; line-height: 1.3; letter-spacing: -.01em; overflow: hidden; overflow-wrap: anywhere;
+          display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-wrap: pretty; }
+  .card.feature .name { font-size: 24px; letter-spacing: -.03em; }
+  .by { color: var(--text-3); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acts { display: flex; gap: 6px; flex: none; }
+  /* small posters in the collage: the copy button is just its round knob, so names keep their room */
+  @media (min-width: 768px), (max-width: 380px) {
+    .card:not(.feature) .acts .cta .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .card:not(.feature) .acts .cta { padding: 5px; } }
 
-  /* curation only: scores, flags, editing */
+  /* curation only */
   .curate-only { display: none; }
   body.curate .curate-only { display: flex; }
-  .chips { flex-wrap: wrap; gap: 4px; }
-  .chip { font-size: 12.5px; padding: 1px 8px; border-radius: var(--r-pill); border: 1px solid var(--line-strong); color: var(--text-2); }
+  .chips { flex-wrap: wrap; gap: 4px; padding: 0 8px; }
+  .chip { font-size: 12px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--hair-strong); color: var(--text-2); }
   .chip.warn { border-color: var(--danger); color: var(--danger); }
-  .metric { font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--text-3); font-variant-numeric: tabular-nums; }
-  .tools { gap: 8px; }
+  .metric { font-size: 12px; color: var(--text-3); padding: 0 8px; font-variant-numeric: tabular-nums; }
+  .tools { gap: 6px; padding: 0 4px 4px; flex-wrap: wrap; }
 
-  .empty { grid-column: 1 / -1; padding: 64px 16px; text-align: center; color: var(--text-2); }
-  .empty strong { display: block; font-size: 19px; color: var(--text); margin-bottom: 6px; font-weight: 600; }
+  /* entrance: a heavy fade-up as each clip enters the viewport (JS adds .reveal only when it can run) */
+  .reveal { opacity: 0; transform: translateY(48px); filter: blur(8px);
+            transition: opacity .75s var(--spring), transform .75s var(--spring), filter .75s var(--spring); }
+  .reveal.in { opacity: 1; transform: none; filter: none; }
+
+  .empty { grid-column: 1 / -1; padding: 80px 16px; text-align: center; color: var(--text-2); }
+  .empty strong { display: block; font-size: 24px; letter-spacing: -.02em; color: var(--text); margin-bottom: 8px; font-weight: 600; }
 
   /* ---------- tables and dialogs ---------- */
-  table { border-collapse: collapse; width: 100%; background: var(--raised); border: 1px solid var(--line); border-radius: var(--r-md); }
-  td, th { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  table { border-collapse: separate; border-spacing: 0; width: 100%; background: var(--core); border: 1px solid var(--hair); border-radius: var(--r-core); overflow: hidden; }
+  td, th { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--hair); }
+  tr:last-child td { border-bottom: 0; }
   th { color: var(--text-3); font-weight: 500; font-size: 13px; }
-  dialog { border: 1px solid var(--line-strong); border-radius: 16px; background: var(--raised); color: var(--text);
-           width: min(560px, calc(100vw - 32px)); padding: 24px; max-height: calc(100dvh - 32px); overflow: auto;
-           overscroll-behavior: contain; }
-  dialog::backdrop { background: rgba(0, 0, 0, .7); }
-  dialog h2 { margin: 0 0 16px; font-size: 19px; letter-spacing: -.01em; }
+  dialog { border: 1px solid var(--hair-strong); border-radius: 30px; background: rgba(14, 14, 16, .86); color: var(--text);
+           backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+           width: min(580px, calc(100vw - 32px)); padding: 28px; max-height: calc(100dvh - 32px); overflow: auto;
+           overscroll-behavior: contain; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
+  dialog::backdrop { background: rgba(0, 0, 0, .72); }
+  dialog h2 { margin: 0 0 18px; font-size: 24px; letter-spacing: -.03em; font-weight: 600; }
   label { display: block; font-size: 13.5px; color: var(--text-2); margin: 14px 0 6px; }
-  input[type=text], textarea, input[type=file] { width: 100%; background: var(--inset); border: 1px solid var(--line);
-         border-radius: var(--r-sm); padding: 10px 12px; outline: none; }
-  input[type=text]:focus, textarea:focus { border-color: var(--subtitle); }
+  input[type=text], textarea, input[type=file] { width: 100%; background: var(--void); border: 1px solid var(--hair);
+         border-radius: 14px; padding: 11px 14px; outline: none; }
+  input[type=text]:focus, textarea:focus { border-color: rgba(255, 213, 74, .6); }
   input[type=checkbox] { accent-color: var(--subtitle); margin-right: 8px; }
-  .actions-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; }
+  .actions-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 26px; }
   .hint { color: var(--text-3); font-size: 13.5px; }
 
   @media (prefers-reduced-motion: reduce) {
-    .sub, .btn, .pill, .frame { transition: none; }
-    .btn:active { transform: none; }
+    .reveal { opacity: 1; transform: none; filter: none; transition: none; }
+    .sub, .cta, .cta .knob, .pill, .tab, .frame video { transition: none; }
+    .frame:hover video, .frame.live video, .cta:hover .knob, .card, .card:hover, .stick, .card:hover .stick { transform: none; }
   }
 </style>
 </head>
 <body>
-<header>
-  <div class="bar">
-    <h1 class="brand" translate="no">memeclip</h1>
-    <div class="search">
-      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <label for="q" class="sr">Search memes</label>
-      <input id="q" type="search" placeholder="What's the meme? Try “salary day” or a line from it…" autocomplete="off" spellcheck="false" enterkeyhint="search">
-    </div>
-    <div class="bar-end">
-      <button id="curate" class="btn quiet" type="button" aria-pressed="false">Curate</button>
-      <button id="open-upload" class="btn solid" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add clip</button>
-    </div>
-  </div>
-</header>
+<div class="stage">
+<div class="island-wrap">
+  <nav class="island" aria-label="memeclip">
+    <span class="wordmark" translate="no">memeclip</span>
+    <button id="curate" class="cta ghost" type="button" aria-pressed="false">Curate</button>
+    <button id="open-upload" class="cta light" type="button"><span class="lbl">Add clip</span><span class="knob"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span></button>
+  </nav>
+</div>
 
 <main>
-  <div class="tabs" role="group" aria-label="Library views">
-    <button class="tab" id="tab-search" type="button" aria-pressed="true">Library</button>
-    <button class="tab" id="tab-review" type="button" aria-pressed="false">Needs review</button>
-    <button class="tab" id="tab-failed" type="button" aria-pressed="false">Not found</button>
-  </div>
-  <div class="quick" id="quick" aria-label="Quick searches"></div>
-  <p id="status" role="status" aria-live="polite"></p>
+  <section class="hero">
+    <span class="eyebrow">Meme search · Hindi &amp; English</span>
+    <h1>Say it with a clip.<span class="tag">no typing needed</span></h1>
+    <p class="lede">Search a line you half remember, who's in it, or the mood. Copy the link and the group chat sees the clip.</p>
+    <div class="search">
+      <div class="shell"><div class="core">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <label for="q" class="sr">Search memes</label>
+        <input id="q" type="search" placeholder="Try “salary day” or a line from the clip…" autocomplete="off" spellcheck="false" enterkeyhint="search">
+      </div></div>
+    </div>
+    <div class="tabs" role="group" aria-label="Library views">
+      <button class="tab" id="tab-search" type="button" aria-pressed="true">Library</button>
+      <button class="tab" id="tab-review" type="button" aria-pressed="false">Needs review</button>
+      <button class="tab" id="tab-failed" type="button" aria-pressed="false">Not found</button>
+    </div>
+    <div class="quick" id="quick" aria-label="Quick searches"></div>
+    <p id="status" role="status" aria-live="polite"></p>
+  </section>
   <div id="grid" class="grid"></div>
   <div id="table"></div>
 </main>
+</div>
 
 <dialog id="upload">
   <form id="upload-form">
@@ -199,8 +289,8 @@
     <p class="hint">The clip is queued. It shows up in search once the worker has processed it.</p>
     <p class="hint" id="upload-error" role="alert"></p>
     <div class="actions-row">
-      <button type="button" class="btn" data-close>Cancel</button>
-      <button class="btn solid" id="upload-submit">Upload</button>
+      <button type="button" class="cta ghost" data-close>Cancel</button>
+      <button class="cta light" id="upload-submit">Upload</button>
     </div>
   </form>
 </dialog>
@@ -219,8 +309,8 @@
     <label><input type="checkbox" name="reviewed">Mark as reviewed</label>
     <p class="hint" id="edit-error" role="alert"></p>
     <div class="actions-row">
-      <button type="button" class="btn" data-close>Cancel</button>
-      <button class="btn solid" id="edit-submit">Save</button>
+      <button type="button" class="cta ghost" data-close>Cancel</button>
+      <button class="cta light" id="edit-submit">Save</button>
     </div>
   </form>
 </dialog>
@@ -250,19 +340,28 @@ function icon(name) {
   return s;
 }
 function button(cls, label, iconName, { text = true } = {}) {
-  const b = el("button", "btn " + cls);
+  // Pill with the icon nested in its own circle ("button in button").
+  const b = el("button", "cta " + cls);
   b.type = "button";
-  b.append(icon(iconName));
-  const t = el("span", "lbl", label);
-  if (!text) t.className = "sr";
-  b.append(t);
-  if (!text) b.setAttribute("aria-label", label);
+  const t = el("span", text ? "lbl" : "sr", label);
+  const knob = el("span", "knob"); knob.append(icon(iconName));
+  b.append(t, knob);
+  if (!text) { b.classList.add("round"); b.setAttribute("aria-label", label); }
   return b;
 }
-function setLabel(b, text) { b.querySelector(".lbl, .sr").textContent = text; }
+function setLabel(b, text) {
+  b.querySelector(".lbl, .sr").textContent = text;
+  if (b.hasAttribute("aria-label")) b.setAttribute("aria-label", text);
+}
 
 const LISTS = ["folk_names", "people", "reactions", "use_when", "topics"];
 const QUICK = ["shocked", "late", "money", "confused", "angry", "happy", "speech"];
+// Every mood owns one saturated colour: its sticker on a clip and its quick search.
+const MOOD_COLOR = {
+  shocked: "#ffe14d", "in a hurry": "#ff8a1f", late: "#ff8a1f", happy: "#ff5fa2", laughing: "#ff5fa2",
+  angry: "#ff4d3d", confused: "#b69cff", helpless: "#6ec8ff", sad: "#6ec8ff", scared: "#3ee6c1",
+  preachy: "#a8d672", speech: "#a8d672", smug: "#ff9e7a", disgusted: "#c6e04a", dancing: "#7cf06a", money: "#c6f04a",
+};
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
 let mode = "search", lastQuery = "", editing = null, timer = null;
 
@@ -336,8 +435,10 @@ function stopClip(frame) {
   if (playing === frame) playing = null;
 }
 
-function card(c) {
-  const node = el("article", "card");
+function card(c, i) {
+  const node = el("article", "card" + (i === 0 ? " feature" : ""));
+  const shell = el("div", "shell"), core = el("div", "core");
+  shell.append(core); node.append(shell);
 
   const frame = el("div", "frame");
   frame.tabIndex = 0;
@@ -350,6 +451,13 @@ function card(c) {
   const snd = el("div", "snd"); snd.append(icon("mute"));
   const time = el("div", "bar-time");
   frame.append(video, sub, snd, time);
+  const mood = (c.reactions || [])[0];
+  if (mood) {
+    node.style.setProperty("--mood", MOOD_COLOR[mood] || "#f4ede4");
+    frame.append(el("div", "stick", mood));
+  }
+  const topic = (c.topics || [])[0];
+  if (topic) frame.append(el("div", "badge", "#" + topic));
   frame._video = video; frame._time = time;
   frame._sound = (on) => { snd.replaceChildren(icon(on ? "volume" : "mute")); };
 
@@ -380,7 +488,7 @@ function card(c) {
     e.dataTransfer.effectAllowed = "copy";
     recordShare(c);
   };
-  node.append(frame);
+  core.append(frame);
 
   const row = el("div", "row");
   const titles = el("div", "titles");
@@ -391,6 +499,8 @@ function card(c) {
 
   const acts = el("div", "acts");
   const copy = button("", "Copy link", "link");
+  copy.setAttribute("aria-label", "Copy link");   // the label is hidden on small posters
+  copy.title = "Copy link";
   copy.onclick = async () => {
     try {
       await navigator.clipboard.writeText(c.share_url || new URL(c.url, location.href).href);
@@ -420,17 +530,17 @@ function card(c) {
     acts.append(send);
   }
   row.append(acts);
-  node.append(row);
+  core.append(row);
 
   // ---- curation only ----
   const chips = el("div", "curate-only chips");
   for (const r of c.reactions || []) chips.append(el("span", "chip", r));
   for (const t of c.topics || []) chips.append(el("span", "chip", "#" + t));
   for (const r of c.review_reasons) chips.append(el("span", "chip warn", r.replaceAll("_", " ")));
-  if (chips.children.length) node.append(chips);
+  if (chips.children.length) core.append(chips);
 
   const signals = `shared ${c.shares} · seen ${c.duplicates_seen}×`;
-  node.append(Object.assign(el("div", "curate-only metric", c.score == null ? signals
+  core.append(Object.assign(el("div", "curate-only metric", c.score == null ? signals
     : `score ${c.score} · keyword ${c.kw} · meaning ${c.sem} · topic ${c.tm} · ${signals}`), {}));
 
   const tools = el("div", "curate-only tools");
@@ -439,8 +549,22 @@ function card(c) {
   const edit = button("", "Edit", "edit");
   edit.onclick = () => openEdit(c.id);
   tools.append(download, edit);
-  node.append(tools);
+  core.append(tools);
   return node;
+}
+
+// Clips fade up as they enter the viewport. Only added when IntersectionObserver
+// exists and motion is welcome, so without it everything is simply visible.
+const revealer = ("IntersectionObserver" in window) ? new IntersectionObserver((entries) => {
+  for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); revealer.unobserve(e.target); }
+}, { rootMargin: "0px 0px -8% 0px" }) : null;
+function reveal(nodes) {
+  if (!revealer || reduceMotion.matches) return;
+  // The fade-up runs on the inner shell, so the poster's tilt (on the card) is kept.
+  nodes.forEach((n, i) => {
+    const target = n.querySelector(".shell") || n;
+    target.classList.add("reveal"); target.style.transitionDelay = `${(i % 4) * 70}ms`; revealer.observe(target);
+  });
 }
 
 function showCards(results, status, emptyTitle, emptyHelp) {
@@ -451,7 +575,9 @@ function showCards(results, status, emptyTitle, emptyHelp) {
     e.append(el("strong", "", emptyTitle), el("span", "", emptyHelp));
     $("grid").replaceChildren(e);
   } else {
-    $("grid").replaceChildren(...results.map(card));
+    const cards = results.map((c, i) => card(c, i));
+    $("grid").replaceChildren(...cards);
+    reveal(cards);
   }
   $("status").replaceChildren(...status);
 }
@@ -557,6 +683,7 @@ $("upload-form").onsubmit = async (e) => {
 
 for (const word of QUICK) {
   const b = el("button", "pill", word);
+  b.style.setProperty("--mood", MOOD_COLOR[word] || "#f4ede4");
   b.type = "button";
   b.setAttribute("aria-pressed", "false");
   b.onclick = () => { $("q").value = lastQuery === word ? "" : word; setMode("search"); };
