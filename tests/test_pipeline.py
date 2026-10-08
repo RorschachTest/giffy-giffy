@@ -362,3 +362,63 @@ def test_18_themes_are_plug_and_play(monkeypatch):
             assert client.get(f"/static/themes/{name}.css").status_code == 200
         assert client.get("/static/base.css").status_code == 200
         assert client.get("/static/scenes/scenes.json").json()["billboard"]["quad"]
+
+
+def test_19_explain_at_ingest_edit_and_share_page(monkeypatch):
+    """A backend's explanation is stored and searchable; a person's edit is never
+    overwritten; the share page shows it."""
+    from fastapi.testclient import TestClient
+
+    from app import api, explain
+
+    explain.register("fake", lambda system, user, frames: {
+        "text": '{"gist": "A man promises something big.", "why_funny": "Empty bluster, over the top.",'
+                ' "send_when": ["when someone talks big", "when a friend overpromises"]}',
+        "usage": {"input_tokens": 9}})
+    monkeypatch.setattr(config, "EXPLAIN_BACKEND", "fake")
+
+    video = make_clip("explained.mp4", "smptebars", seconds=3)
+    sidecar(video, title="pagal kar denge desh ko", language="hi")
+    result = process(video)
+    row = clip(result["clip_id"])
+    assert row["gist"] == "A man promises something big." and row["explain_source"] == "fake"
+    assert row["send_when"] == ["when someone talks big", "when a friend overpromises"]
+    assert row["raw"]["explain"]["backend"] == "fake"
+    assert "bluster" in row["s_meta"]                                       # searchable
+    assert result["clip_id"] in top("empty bluster over the top")
+
+    with TestClient(api.app) as client:
+        share_id = client.get(f"/clips/{result['clip_id']}").json()["share_id"]
+        page = client.get(f"/c/{share_id}").text
+        assert "A man promises something big." in page and "Why it works" in page and "when someone talks big" in page
+        # a person edits it: source becomes manual, indexing sees it
+        patched = client.patch(f"/clips/{result['clip_id']}", json={"gist": "Human gist."}).json()
+        assert patched["gist"] == "Human gist." and patched["explain_source"] == "manual"
+    # re-running a backend over it must not overwrite the person's words
+    fields, source = explain.merge(clip(result["clip_id"]),
+                                   {"gist": "model again", "why_funny": "x", "send_when": []}, "fake", replace=True)
+    assert fields["gist"] == "Human gist." and source == "manual"
+
+
+def test_20_sidecar_explanation_counts_as_human(monkeypatch):
+    from app import explain
+
+    monkeypatch.setattr(config, "EXPLAIN_BACKEND", "fake")   # registered in test_19; must not be called
+    explain.register("fake", lambda *a: (_ for _ in ()).throw(AssertionError("the model must not run")))
+    video = make_clip("written.mp4", "gradients", seconds=3)
+    sidecar(video, title="written by hand", gist="Hand written.", why_funny="Because.", send_when=["when it is"])
+    first = process(video)
+    row = clip(first["clip_id"])
+    assert first["status"] == "new"
+    assert row["gist"] == "Hand written." and row["explain_source"] == "sidecar" and row["send_when"] == ["when it is"]
+
+    # the same clip arrives again, a person's sidecar says something else: it wins over a model's text
+    with db.session() as conn:
+        conn.execute("UPDATE clips SET explain_source = 'fake', gist = 'model text', send_when = '{}' WHERE id = %s",
+                     (first["clip_id"],))
+    again = WORK / "written_again.mp4"
+    again.write_bytes(video.read_bytes())
+    sidecar(again, title="again", gist="Corrected by a person.")
+    assert process(again)["status"] == "duplicate"
+    row = clip(first["clip_id"])
+    assert row["gist"] == "Corrected by a person." and row["explain_source"] == "sidecar"

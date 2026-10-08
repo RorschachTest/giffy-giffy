@@ -26,7 +26,7 @@ from .embed import embed_one
 from .text import normalise
 
 COLUMNS = """id, left(sha256, 10) AS share_id, file, thumb, duration, title, transcript_roman, transcript_native, folk_names,
-             people, source_title, description, reactions, use_when, topics, hashtags,
+             people, source_title, description, reactions, use_when, topics, gist, why_funny, send_when, hashtags,
              shares, duplicates_seen, needs_review, review_reasons, first_seen"""
 
 # Note: `%%` is a literal % for the driver. `a <% b` means "a fuzzily appears in b".

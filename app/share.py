@@ -49,7 +49,7 @@ def _clip(share_id: str) -> dict:
     with db.session() as conn:
         row = conn.execute(
             """SELECT id, left(sha256, 10) AS share_id, file, thumb, duration, width, height,
-                      title, folk_names, transcript_roman, use_when, reactions, people
+                      title, folk_names, transcript_roman, use_when, reactions, people, gist, why_funny, send_when
                  FROM clips WHERE left(sha256, 10) = %s""",
             (share_id,),
         ).fetchone()
@@ -63,6 +63,7 @@ def _facts(c: dict, base: str) -> dict:
     return {
         "name": (c["folk_names"] or [c["title"] or "meme"])[0],
         "said": c["transcript_roman"] or "",
+        "gist": c["gist"], "why": c["why_funny"], "when": c["send_when"],
         "about": ", ".join([*c["reactions"][:2], *c["use_when"][:1]]),
         "page": share_url(base, c["share_id"]),
         "embed": f"{share_url(base, c['share_id'])}/embed",
@@ -74,7 +75,7 @@ def _facts(c: dict, base: str) -> dict:
 
 
 def _meta_tags(f: dict, base: str) -> str:
-    description = f"“{f['said']}”" if f["said"] else (f["about"] or "A meme clip on memeclip")
+    description = f["gist"] or (f"“{f['said']}”" if f["said"] else (f["about"] or "A meme clip on memeclip"))
     tags = [
         ("property", "og:site_name", "memeclip"),
         ("property", "og:type", "video.other"),
@@ -128,6 +129,10 @@ PAGE = """<!doctype html>
   footer {{ padding: 14px 18px max(18px, env(safe-area-inset-bottom)); display: grid; gap: 4px; }}
   h1 {{ margin: 0; font-size: 18px; }}
   .said {{ color: #b9b5ac; font-style: italic; }}
+  .why {{ margin: 6px 0 0; display: grid; gap: 6px; max-width: 62ch; }}
+  .why p {{ margin: 0; color: #d6d2c8; }}
+  .why b {{ color: #ffd54a; font-weight: 600; }}
+  .when {{ margin: 0; padding-left: 18px; color: #b9b5ac; }}
   a {{ color: #ff8a5c; }}
 </style>
 </head>
@@ -139,6 +144,7 @@ PAGE = """<!doctype html>
   <footer>
     <h1>{title}</h1>
     {said}
+    {why}
     <div><a href="{home}">Find another meme</a></div>
   </footer>
 </main>
@@ -162,6 +168,20 @@ EMBED = """<!doctype html>
 """
 
 
+def _why_html(f: dict, e) -> str:
+    """What is happening and why it is funny, when someone or something wrote it."""
+    if not (f["gist"] or f["why"] or f["when"]):
+        return ""
+    parts = []
+    if f["gist"]:
+        parts.append(f"<p>{e(f['gist'])}</p>")
+    if f["why"]:
+        parts.append(f"<p><b>Why it works</b> {e(f['why'])}</p>")
+    if f["when"]:
+        parts.append("<p><b>Send it</b></p><ul class=\"when\">" + "".join(f"<li>{e(w)}</li>" for w in f["when"]) + "</ul>")
+    return '<div class="why">' + "".join(parts) + "</div>"
+
+
 @router.get("/c/{share_id}", response_class=HTMLResponse)
 def share_page(share_id: str, request: Request) -> HTMLResponse:
     base = public_base(request)
@@ -170,6 +190,7 @@ def share_page(share_id: str, request: Request) -> HTMLResponse:
     return HTMLResponse(PAGE.format(
         title=e(f["name"]), meta=_meta_tags(f, base), video=e(f["video"]), thumb=e(f["thumb"]),
         said=f'<div class="said">“{e(f["said"])}”</div>' if f["said"] else "", home=e(base + "/"),
+        why=_why_html(f, e),
     ))
 
 

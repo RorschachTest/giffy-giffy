@@ -65,6 +65,12 @@ LAYA_TOPIC_MIN = float(os.getenv("LAYA_TOPIC_MIN", "0.45"))  # probability to ke
 LAYA_MAX_TOPICS = int(os.getenv("LAYA_MAX_TOPICS", "5"))
 LAYA_QUERY_MIN = float(os.getenv("LAYA_QUERY_MIN", "0.3"))  # probability to treat a query as about X
 
+# Why is it funny: gist / why_funny / send_when. off | manual | local | claude.
+# off and manual never call a model (manual = people write it in the Edit form).
+EXPLAIN_BACKEND = os.getenv("EXPLAIN_BACKEND", "off")
+EXPLAIN_FRAMES = int(os.getenv("EXPLAIN_FRAMES", "4"))
+EXPLAIN_TIMEOUT = float(os.getenv("EXPLAIN_TIMEOUT", "180"))
+
 # Faces
 ENABLE_FACES = _bool("ENABLE_FACES", True)
 FACE_MODEL = os.getenv("FACE_MODEL", "buffalo_l")

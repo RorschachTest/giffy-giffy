@@ -33,7 +33,7 @@ def search_fields(clip: dict, aliases: list[str]) -> dict:
     said = clip["transcript_roman"]
     people = [*clip["people"], *aliases, clip["source_title"]]
     meta = [caption, *tags, clip["description"], *clip["reactions"], *clip["use_when"],
-            *clip["topics"],
+            *clip["topics"], clip["gist"], clip["why_funny"], *clip["send_when"],
             *clip["comments"][:MAX_COMMENTS_INDEXED]]
 
     f = {
@@ -63,6 +63,9 @@ def embedding_text(clip: dict) -> str:
         f"Mood: {', '.join(clip['reactions'])}" if clip["reactions"] else "",
         f"Use when: {'; '.join(clip['use_when'])}" if clip["use_when"] else "",
         f"About: {', '.join(clip['topics'])}" if clip["topics"] else "",
+        f"What happens: {clip['gist']}" if clip["gist"] else "",
+        f"Why it is funny: {clip['why_funny']}" if clip["why_funny"] else "",
+        f"Send when: {'; '.join(clip['send_when'])}" if clip["send_when"] else "",
         caption,
     ]
     return ". ".join(p for p in parts if p)

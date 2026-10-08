@@ -16,12 +16,12 @@ from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
-from . import config, faces, indexing, laya, media, vibe
+from . import config, explain, faces, indexing, laya, media, vibe
 from .text import has_devanagari, to_roman
 
 log = logging.getLogger("pipeline")
 
-LIST_FIELDS = ("hashtags", "comments", "folk_names", "people", "reactions", "use_when", "topics")
+LIST_FIELDS = ("hashtags", "comments", "folk_names", "people", "reactions", "use_when", "topics", "send_when")
 MAX_COMMENTS = 20
 
 
@@ -74,6 +74,10 @@ def load_meta(sidecar: Path | None) -> dict:
         "reactions": _as_list(raw.get("reactions")),
         "use_when": _as_list(raw.get("use_when")),
         "topics": _as_list(raw.get("topics")),
+        # a person wrote these in the sidecar: kept as they are (explain_source "sidecar")
+        "gist": (raw.get("gist") or "").strip(),
+        "why_funny": (raw.get("why_funny") or "").strip(),
+        "send_when": _as_list(raw.get("send_when")),
         "transcript": (raw.get("transcript") or "").strip(),
     }
     return meta
@@ -132,6 +136,14 @@ def merge_duplicate(conn, clip_id: int, meta: dict) -> None:
     updates["caption"] = clip["caption"] or meta["caption"]
     updates["source_title"] = clip["source_title"] or meta["source_title"]
     updates["description"] = clip["description"] or meta["description"]
+    updates["gist"] = clip["gist"] or meta["gist"]
+    updates["why_funny"] = clip["why_funny"] or meta["why_funny"]
+    if (meta["gist"] or meta["why_funny"] or meta["send_when"]) and clip["explain_source"] not in explain.HUMAN_SOURCES:
+        # this upload came with an explanation a person wrote: it beats any model's text
+        updates["gist"] = meta["gist"] or clip["gist"]
+        updates["why_funny"] = meta["why_funny"] or clip["why_funny"]
+        updates["send_when"] = meta["send_when"] or clip["send_when"]
+        updates["explain_source"] = "sidecar"
     updates["source_urls"] = _union(clip["source_urls"], [meta["source_url"]] if meta["source_url"] else [])
     sets = ", ".join(f"{k} = %({k})s" for k in updates)
     conn.execute(
@@ -209,12 +221,14 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
                                       language, transcript_native, transcript_roman,
                                       title, caption, hashtags, comments, source_urls,
                                       folk_names, people, source_title, description,
-                                      reactions, use_when, topics)
+                                      reactions, use_when, topics, gist, why_funny, send_when,
+                                      explain_source)
                    VALUES (%(sha)s, %(phash)s, %(file)s, %(thumb)s, %(duration)s, %(width)s,
                            %(height)s, %(has_audio)s, %(language)s, %(native)s, %(roman)s,
                            %(title)s, %(caption)s, %(hashtags)s, %(comments)s, %(source_urls)s,
                            %(folk_names)s, %(people)s, %(source_title)s, %(description)s,
-                           %(reactions)s, %(use_when)s, %(topics)s)
+                           %(reactions)s, %(use_when)s, %(topics)s, %(gist)s, %(why_funny)s,
+                           %(send_when)s, %(explain_source)s)
                    RETURNING id""",
                 {
                     "sha": sha, "phash": phash, "file": out_video.name, "thumb": out_thumb.name,
@@ -227,7 +241,9 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
                     "folk_names": meta["folk_names"], "people": meta["people"],
                     "source_title": meta["source_title"], "description": meta["description"],
                     "reactions": meta["reactions"], "use_when": meta["use_when"],
-                    "topics": meta["topics"],
+                    "topics": meta["topics"], "gist": meta["gist"], "why_funny": meta["why_funny"],
+                    "send_when": meta["send_when"],
+                    "explain_source": "sidecar" if (meta["gist"] or meta["why_funny"] or meta["send_when"]) else "",
                 },
             ).fetchone()["id"]
 
@@ -253,6 +269,23 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
                 if seen["unknown"] and not seen["people"]:
                     reasons.append("unknown_faces")
             raw["people_evidence"] = people
+
+            # --- why is it funny (a model, when EXPLAIN_BACKEND asks for one) ------
+            if explain.available() and not (meta["gist"] or meta["why_funny"] or meta["send_when"]):
+                try:
+                    found = explain.explain(frames, meta["title"], native, roman, language)
+                    raw["explain"] = {k: found[k] for k in ("backend", "seconds", "usage")}
+                    if explain.is_empty(found):
+                        reasons.append("explain_failed")
+                    else:
+                        fields, source = explain.merge({"explain_source": ""}, found, found["backend"])
+                        conn.execute(
+                            """UPDATE clips SET gist = %s, why_funny = %s, send_when = %s,
+                                                explain_source = %s WHERE id = %s""",
+                            (fields["gist"], fields["why_funny"], fields["send_when"], source, clip_id))
+                except Exception:
+                    log.exception("explain failed for %s", video.name)
+                    reasons.append("explain_failed")
 
             # --- topics + text mood (Laya): sidecar topics are kept, Laya adds ----
             text_moods = None

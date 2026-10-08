@@ -4,6 +4,8 @@
     python -m app.reindex --no-embed   skip embeddings (much faster)
     python -m app.reindex --vibe       first fill empty mood/description/use-when (local models)
     python -m app.reindex --laya       first add Laya topics to every clip (keeps existing ones)
+    python -m app.reindex --explain    first write gist / why_funny / send_when with EXPLAIN_BACKEND
+                                       (clips a person wrote are never touched; add --replace to redo the rest)
     python -m app.reindex --vibe --replace
                                        recompute mood on every clip, overwriting hand edits too
 
@@ -17,7 +19,7 @@ from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
-from . import config, db, faces, indexing, laya, media, pipeline, vibe
+from . import config, db, explain, faces, indexing, laya, media, pipeline, vibe
 
 
 def _report_failed(step: str, failed: list[int], total: int) -> None:
@@ -44,6 +46,37 @@ def backfill_laya() -> None:
             failed.append(r["id"])
             print(f"laya: clip {r['id']} {r['title']!r} SKIPPED: {exc}", file=sys.stderr)
     _report_failed("laya", failed, len(rows))
+
+
+def backfill_explain(replace: bool = False) -> None:
+    """Explain every clip that has no explanation yet (or all with replace), except
+    clips whose explanation a person wrote."""
+    where = "explain_source NOT IN ('manual', 'sidecar')"
+    if not replace:
+        where += " AND gist = '' AND why_funny = ''"
+    with db.session() as conn:
+        rows = conn.execute(f"SELECT * FROM clips WHERE {where} ORDER BY id").fetchall()
+    failed = []
+    for r in rows:
+        try:
+            with tempfile.TemporaryDirectory(prefix="memeclip_") as tmp:
+                frames = media.extract_keyframes(config.MEDIA_DIR / r["file"], Path(tmp),
+                                                 r["duration"], config.EXPLAIN_FRAMES)
+                found = explain.explain(frames, r["title"], r["transcript_native"], r["transcript_roman"],
+                                        r["language"])
+            if explain.is_empty(found):
+                raise ValueError("the model returned nothing usable")
+            fields, source = explain.merge(r, found, found["backend"], replace=replace)
+            raw = {**(r["raw"] or {}), "explain": {k: found[k] for k in ("backend", "seconds", "usage")}}
+            with db.session() as conn:
+                conn.execute("""UPDATE clips SET gist=%s, why_funny=%s, send_when=%s, explain_source=%s, raw=%s
+                                 WHERE id=%s""",
+                             (fields["gist"], fields["why_funny"], fields["send_when"], source, Jsonb(raw), r["id"]))
+            print(f"explain: clip {r['id']} {r['title']!r} ({found['seconds']}s): {fields['gist']}")
+        except Exception as exc:   # one bad clip must not stop the rest
+            failed.append(r["id"])
+            print(f"explain: clip {r['id']} {r['title']!r} SKIPPED: {exc}", file=sys.stderr)
+    _report_failed("explain", failed, len(rows))
 
 
 def backfill_vibe(replace: bool = False) -> None:
@@ -92,6 +125,10 @@ def main() -> None:
         if not laya.available():
             sys.exit("--laya needs LAYA_URL")
         backfill_laya()
+    if "--explain" in sys.argv:
+        if not explain.available():
+            sys.exit(f"--explain needs EXPLAIN_BACKEND to be a model backend (local or claude), got {config.EXPLAIN_BACKEND!r}")
+        backfill_explain(replace="--replace" in sys.argv)
     if "--vibe" in sys.argv:
         if not config.ENABLE_VIBE:
             sys.exit("--vibe needs ENABLE_VIBE=1")

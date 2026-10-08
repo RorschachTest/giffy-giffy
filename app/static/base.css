@@ -81,6 +81,10 @@ body.curate .tabs { display: inline-flex; }
 body.curate .curate-only { display: flex; }
 .chips { flex-wrap: wrap; gap: 4px; }
 .metric { font-variant-numeric: tabular-nums; }
+.explain { flex-direction: column; gap: 4px; padding: 0 8px; font-size: 13px; color: var(--text-2); }
+.explain p { margin: 0; }
+.explain b { color: var(--text); font-weight: 600; }
+.explain .src { font-size: 11px; color: var(--text-3); }
 .tools { flex-wrap: wrap; gap: 6px; }
 
 /* entrance: the script adds .reveal only when the theme sets --reveal: on and motion is welcome */

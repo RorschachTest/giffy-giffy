@@ -35,6 +35,10 @@ CREATE TABLE IF NOT EXISTS clips (
     reactions        TEXT[] NOT NULL DEFAULT '{}',
     use_when         TEXT[] NOT NULL DEFAULT '{}',
     topics           TEXT[] NOT NULL DEFAULT '{}',     -- what it is about (Laya, sidecar or by hand)
+    gist             TEXT NOT NULL DEFAULT '',         -- what is happening, one sentence
+    why_funny        TEXT NOT NULL DEFAULT '',         -- the joke mechanism, in plain words
+    send_when        TEXT[] NOT NULL DEFAULT '{}',     -- situations to send it in
+    explain_source   TEXT NOT NULL DEFAULT '',         -- local | claude | manual | sidecar; manual/sidecar are never overwritten
 
     -- EVIDENCE: real queries that ended in a share, {normalised query: count}
     learned_queries  JSONB NOT NULL DEFAULT '{}',
@@ -63,6 +67,10 @@ CREATE TABLE IF NOT EXISTS clips (
 -- Columns added after the first release. There are no migrations, so each one is
 -- added here in a way that is a no-op on a database that already has it.
 ALTER TABLE clips ADD COLUMN IF NOT EXISTS topics TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS gist TEXT NOT NULL DEFAULT '';
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS why_funny TEXT NOT NULL DEFAULT '';
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS send_when TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS explain_source TEXT NOT NULL DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS clips_topics ON clips USING gin (topics);
 -- share links are /c/<first 10 hex of sha256> (app/share.py)

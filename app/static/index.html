@@ -75,6 +75,9 @@
     <label for="e-people">People (comma separated)</label><input id="e-people" type="text" autocomplete="off" name="people">
     <label for="e-film">Film or show</label><input id="e-film" type="text" autocomplete="off" name="source_title">
     <label for="e-desc">What happens on screen</label><textarea id="e-desc" name="description" rows="2"></textarea>
+    <label for="e-gist">What is happening, in one sentence</label><textarea id="e-gist" name="gist" rows="2"></textarea>
+    <label for="e-why">Why is it funny, or why do people send it?</label><textarea id="e-why" name="why_funny" rows="2"></textarea>
+    <label for="e-when">Send it when (comma separated, each starting with "when")</label><input id="e-when" type="text" autocomplete="off" name="send_when">
     <label for="e-react">Reactions (comma separated)</label><input id="e-react" type="text" autocomplete="off" name="reactions">
     <label for="e-use">Use when (comma separated)</label><input id="e-use" type="text" autocomplete="off" name="use_when">
     <label for="e-topics">Topics (comma separated)</label><input id="e-topics" type="text" autocomplete="off" name="topics">
@@ -126,7 +129,8 @@ function setLabel(b, text) {
   if (b.hasAttribute("aria-label")) b.setAttribute("aria-label", text);
 }
 
-const LISTS = ["folk_names", "people", "reactions", "use_when", "topics"];
+const LISTS = ["folk_names", "people", "reactions", "use_when", "topics", "send_when"];
+const TEXTS = ["transcript_roman", "source_title", "description", "gist", "why_funny"];
 const QUICK = ["shocked", "late", "money", "confused", "angry", "happy", "speech"];
 // Every mood's colour comes from the theme: --mood-<name> and --mood-<name>-on
 // (text on it), with --mood-default / --mood-on-default for anything unlisted.
@@ -314,6 +318,15 @@ function card(c, i) {
   for (const r of c.review_reasons) chips.append(el("span", "chip warn", r.replaceAll("_", " ")));
   if (chips.children.length) core.append(chips);
 
+  if (c.gist || c.why_funny || (c.send_when || []).length) {
+    const ex = el("div", "curate-only explain");
+    if (c.gist) ex.append(el("p", "", c.gist));
+    if (c.why_funny) { const p = el("p"); p.append(el("b", "", "Why it works "), document.createTextNode(c.why_funny)); ex.append(p); }
+    if ((c.send_when || []).length) ex.append(el("p", "when", c.send_when.join(" · ")));
+    ex.append(el("p", "src", `written by ${c.explain_source || "a model"}`));
+    core.append(ex);
+  }
+
   const signals = `shared ${c.shares} · seen ${c.duplicates_seen}×`;
   core.append(Object.assign(el("div", "curate-only metric", c.score == null ? signals
     : `score ${c.score} · keyword ${c.kw} · meaning ${c.sem} · topic ${c.tm} · ${signals}`), {}));
@@ -495,7 +508,7 @@ async function openEdit(id) {
   editing = id;
   const f = $("edit-form");
   for (const k of LISTS) f[k].value = c[k].join(", ");
-  for (const k of ["transcript_roman", "source_title", "description"]) f[k].value = c[k];
+  for (const k of TEXTS) f[k].value = c[k];
   f.reviewed.checked = false;
   $("edit").showModal();
 }
@@ -504,7 +517,7 @@ $("edit-form").onsubmit = async (e) => {
   e.preventDefault();
   const f = e.target, body = {};
   for (const k of LISTS) body[k] = f[k].value.split(",").map((s) => s.trim()).filter(Boolean);
-  for (const k of ["transcript_roman", "source_title", "description"]) body[k] = f[k].value;
+  for (const k of TEXTS) body[k] = f[k].value;
   if (f.reviewed.checked) body.reviewed = true;
   const submit = $("edit-submit");
   submit.disabled = true; submit.textContent = "Saving…"; $("edit-error").textContent = "";

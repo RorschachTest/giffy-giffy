@@ -38,8 +38,8 @@ def theme_names() -> list[str]:
     return sorted(p.stem for p in THEMES.glob("*.css"))
 
 # Facts a human may correct. Anything else on the row is derived or measured.
-EDITABLE_TEXT = {"title", "caption", "transcript_roman", "source_title", "description"}
-EDITABLE_LISTS = {"folk_names", "people", "reactions", "use_when", "topics", "hashtags"}
+EDITABLE_TEXT = {"title", "caption", "transcript_roman", "source_title", "description", "gist", "why_funny"}
+EDITABLE_LISTS = {"folk_names", "people", "reactions", "use_when", "topics", "hashtags", "send_when"}
 
 
 @asynccontextmanager
@@ -114,7 +114,7 @@ def get_clip(clip_id: int, request: Request) -> dict:
             """SELECT id, left(sha256, 10) AS share_id, file, thumb, duration, width, height, has_audio, language,
                       transcript_native, transcript_roman, title, caption, hashtags, comments,
                       source_urls, folk_names, people, source_title, description, reactions,
-                      use_when, topics, learned_queries, s_names, s_said, s_people, s_meta, s_learned,
+                      use_when, topics, gist, why_funny, send_when, explain_source, learned_queries, s_names, s_said, s_people, s_meta, s_learned,
                       duplicates_seen, shares, first_seen, needs_review, review_reasons, raw
                  FROM clips WHERE id = %s""",
             (clip_id,),
@@ -130,6 +130,9 @@ class ClipPatch(BaseModel):
     transcript_roman: str | None = None
     source_title: str | None = None
     description: str | None = None
+    gist: str | None = None
+    why_funny: str | None = None
+    send_when: list[str] | None = None
     folk_names: list[str] | None = None
     people: list[str] | None = None
     reactions: list[str] | None = None
@@ -149,6 +152,8 @@ def patch_clip(clip_id: int, patch: ClipPatch, request: Request) -> dict:
             updates[key] = value.strip()
         elif key in EDITABLE_LISTS:
             updates[key] = [v.strip() for v in value if v.strip()]
+    if {"gist", "why_funny", "send_when"} & updates.keys():
+        updates["explain_source"] = "manual"   # a person wrote it: no model overwrites it again
     if reviewed:
         updates["needs_review"] = False
         updates["review_reasons"] = []
