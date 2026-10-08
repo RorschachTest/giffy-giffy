@@ -38,6 +38,7 @@
     <div class="tabs" role="group" aria-label="Library views">
       <button class="tab" id="tab-search" type="button" aria-pressed="true">Library</button>
       <button class="tab" id="tab-review" type="button" aria-pressed="false">Needs review</button>
+      <button class="tab" id="tab-meaning" type="button" aria-pressed="false">Needs meaning</button>
       <button class="tab" id="tab-failed" type="button" aria-pressed="false">Not found</button>
     </div>
     <div class="quick" id="quick" aria-label="Quick searches"></div>
@@ -70,6 +71,8 @@
 <dialog id="edit">
   <form id="edit-form">
     <h2>Edit clip</h2>
+    <video id="e-video" controls muted loop playsinline preload="metadata" style="width:100%;max-height:34vh;background:#000;border-radius:12px"></video>
+    <p class="hint" id="e-context"></p>
     <label for="e-folk">What people call this meme (comma separated)</label><input id="e-folk" type="text" autocomplete="off" name="folk_names">
     <label for="e-said">What is said (Roman script)</label><textarea id="e-said" name="transcript_roman" rows="2"></textarea>
     <label for="e-people">People (comma separated)</label><input id="e-people" type="text" autocomplete="off" name="people">
@@ -85,6 +88,7 @@
     <p class="hint" id="edit-error" role="alert"></p>
     <div class="actions-row">
       <button type="button" class="cta ghost" data-close>Cancel</button>
+      <button class="cta ghost" id="edit-next" type="button" hidden>Save &amp; next</button>
       <button class="cta light" id="edit-submit">Save</button>
     </div>
   </form>
@@ -429,8 +433,10 @@ function reveal(nodes) {
   });
 }
 
+let shownIds = [];
 function showCards(results, status, emptyTitle, emptyHelp) {
   playing = null;
+  shownIds = results.map((c) => c.id);
   $("table").replaceChildren();
   if (!results.length) {
     const e = el("div", "empty");
@@ -476,6 +482,13 @@ async function runReview() {
             "Nothing to review", "Every clip passed its checks.");
 }
 
+async function runMeaning() {
+  const data = await api("/needs-meaning");
+  showCards(data.results, [el("span", "", `${data.count} of ${data.total} clips have no explanation yet. `
+                          + "Open Edit and write what is happening, why it is funny, and when to send it.")],
+            "Everything is explained", "Every clip has a gist or a why-it-is-funny.");
+}
+
 async function runFailed() {
   const data = await api("/queries/failed");
   $("grid").replaceChildren();
@@ -491,8 +504,8 @@ async function runFailed() {
 
 function setMode(next) {
   mode = next;
-  for (const m of ["search", "review", "failed"]) $("tab-" + m).setAttribute("aria-pressed", String(m === mode));
-  ({ search: runSearch, review: runReview, failed: runFailed })[mode]();
+  for (const m of ["search", "review", "meaning", "failed"]) $("tab-" + m).setAttribute("aria-pressed", String(m === mode));
+  ({ search: runSearch, review: runReview, meaning: runMeaning, failed: runFailed })[mode]();
 }
 
 function setCurate(on) {
@@ -510,11 +523,20 @@ async function openEdit(id) {
   for (const k of LISTS) f[k].value = c[k].join(", ");
   for (const k of TEXTS) f[k].value = c[k];
   f.reviewed.checked = false;
-  $("edit").showModal();
+  const v = $("e-video"); v.src = c.url; v.poster = c.thumb || "";
+  $("e-context").textContent = [c.title, c.transcript_roman ? `says: “${c.transcript_roman}”` : ""].filter(Boolean).join(" · ");
+  const next = shownIds[shownIds.indexOf(id) + 1];
+  $("edit-next").hidden = !next;
+  $("edit-next").dataset.next = next || "";
+  if (!$("edit").open) $("edit").showModal();
 }
+
+$("edit-next").onclick = () => { $("edit-form").dataset.then = "next"; $("edit-form").requestSubmit(); };
 
 $("edit-form").onsubmit = async (e) => {
   e.preventDefault();
+  const then = e.target.dataset.then; delete e.target.dataset.then;
+  const nextId = Number($("edit-next").dataset.next) || null;
   const f = e.target, body = {};
   for (const k of LISTS) body[k] = f[k].value.split(",").map((s) => s.trim()).filter(Boolean);
   for (const k of TEXTS) body[k] = f[k].value;
@@ -523,12 +545,16 @@ $("edit-form").onsubmit = async (e) => {
   submit.disabled = true; submit.textContent = "Saving…"; $("edit-error").textContent = "";
   try {
     await api(`/clips/${editing}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    $("edit-error").textContent = "";
+    if (then === "next" && nextId) { await openEdit(nextId); return; }   // keep writing: the next clip, same dialog
+    $("e-video").pause();
     $("edit").close();
     setMode(mode);
   } catch (err) {
     $("edit-error").textContent = `Not saved: ${err.message}. Your changes are still here; try Save again.`;
   } finally { submit.disabled = false; submit.textContent = "Save"; }
 };
+$("edit").addEventListener("close", () => $("e-video").pause());
 
 $("upload-form").onsubmit = async (e) => {
   e.preventDefault();
@@ -556,7 +582,7 @@ for (const word of QUICK) {
 $("open-upload").onclick = () => $("upload").showModal();
 $("curate").onclick = () => setCurate(!document.body.classList.contains("curate"));
 for (const b of document.querySelectorAll("[data-close]")) b.onclick = () => b.closest("dialog").close();
-for (const m of ["search", "review", "failed"]) $("tab-" + m).onclick = () => setMode(m);
+for (const m of ["search", "review", "meaning", "failed"]) $("tab-" + m).onclick = () => setMode(m);
 $("q").oninput = () => { clearTimeout(timer); timer = setTimeout(() => setMode("search"), 350); };
 // #curate in the address opens the curation view (also when only the # part changes)
 const curateFromHash = () => {

@@ -14,6 +14,7 @@ button { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-colo
 svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: var(--icon-stroke, 1.5);
         stroke-linecap: round; stroke-linejoin: round; flex: none; }
 :focus-visible { outline: 2px solid var(--focus, #ffd54a); outline-offset: 3px; }
+[hidden] { display: none !important; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .stage { position: relative; z-index: 2; }
 

@@ -7,6 +7,7 @@
     GET   /clips/{id}           everything we know about one clip
     PATCH /clips/{id}           correct or add facts by hand
     GET   /review               clips the pipeline was unsure about
+    GET   /needs-meaning        clips nobody has explained yet (gist and why_funny empty)
     GET   /queries/failed       searches that found nothing
     POST  /upload               drop a clip into the inbox from the browser
     GET   /media/...            the clip files
@@ -178,6 +179,21 @@ def review(request: Request, limit: int = 50) -> dict:
             (max(1, min(limit, 200)),),
         ).fetchall()
     return {"count": len(rows), "results": [_public(r, request) for r in rows]}
+
+
+@app.get("/needs-meaning")
+def needs_meaning(request: Request, limit: int = 100) -> dict:
+    """Clips with no explanation yet (a model's counts as one; only an empty gist and
+    why_funny is "missing"), most-shared first, so the ones people use get written first."""
+    with db.session() as conn:
+        rows = conn.execute(
+            f"""SELECT {search_mod.COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS score
+                  FROM clips WHERE gist = '' AND why_funny = ''
+                 ORDER BY shares + duplicates_seen DESC, first_seen DESC LIMIT %s""",
+            (max(1, min(limit, 500)),),
+        ).fetchall()
+        total = conn.execute("SELECT count(*) AS n FROM clips").fetchone()["n"]
+    return {"count": len(rows), "total": total, "results": [_public(r, request) for r in rows]}
 
 
 @app.get("/queries/failed")
