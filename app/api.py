@@ -63,7 +63,8 @@ def _public(row: dict, request: Request | None = None) -> dict:
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(STATIC / "index.html")
+    # no-cache: browsers re-check the page on every visit, so an update shows at once
+    return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/search")

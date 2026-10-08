@@ -2,76 +2,186 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0b0c10">
 <title>memeclip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&display=swap">
 <style>
+  /* Dark screening room. The page is the dark; the clips are the light.
+     One accent, the yellow of burned-in subtitles, used only where the page
+     speaks: dialogue on a playing clip, what the search understood, focus.
+     Depth: hairlines and small surface steps, no shadows. Base unit 4px. */
   :root {
-    --bg: #f6f4ef; --card: #ffffff; --ink: #1c1b19; --muted: #6d6a63;
-    --line: #dedad0; --accent: #d9480f; --accent-ink: #ffffff; --chip: #efece4;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #151412; --card: #1f1e1b; --ink: #f1eee7; --muted: #a09c93;
-            --line: #33312c; --accent: #ff7a45; --accent-ink: #1c1b19; --chip: #2a2824; }
+    color-scheme: dark;
+    --room: #0b0c10;          /* the page */
+    --raised: #12141a;        /* header, dialogs, tiles at rest */
+    --lifted: #1a1d25;        /* hover, pressed */
+    --inset: #08090c;         /* inputs: they receive content, so they sit lower */
+    --line: rgba(255, 255, 255, .08);
+    --line-strong: rgba(255, 255, 255, .16);
+    --text: #ecebe6;
+    --text-2: #b4b6bf;
+    --text-3: #868994;        /* 4.8:1 on --room */
+    --subtitle: #ffd54a;
+    --on-subtitle: #17130a;
+    --danger: #ff8a7a;
+    --font: "Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --r-sm: 8px; --r-md: 12px; --r-pill: 999px;
+    --ease: cubic-bezier(.23, 1, .32, 1);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink);
-         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  header { position: sticky; top: 0; z-index: 2; background: var(--bg);
-           border-bottom: 1px solid var(--line); padding: 12px 16px; }
-  .bar { max-width: 1100px; margin: 0 auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .brand { font-weight: 700; letter-spacing: -.02em; margin-right: 4px; }
-  input, textarea, button, select { font: inherit; color: inherit; }
-  input[type=search], input[type=text], textarea {
-    background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; width: 100%; }
-  #q { flex: 1 1 260px; font-size: 16px; }
-  button { background: var(--card); border: 1px solid var(--line); border-radius: 8px;
-           padding: 8px 12px; cursor: pointer; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
-  button.on { border-color: var(--accent); color: var(--accent); }
-  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
-  #status { color: var(--muted); margin: 0 0 12px; min-height: 1.4em; }
-  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
-          display: flex; flex-direction: column; }
-  .card video { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #000; display: block; cursor: default; }
-  .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
-  .name { font-weight: 600; overflow-wrap: anywhere; }
-  .said { color: var(--muted); font-style: italic; overflow-wrap: anywhere; }
-  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
-  .chip { background: var(--chip); border-radius: 999px; padding: 1px 8px; font-size: 12.5px; }
-  .chip.topic { background: transparent; border: 1px solid var(--chip); }
-  .chip.warn { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
-  .score { font: 12px/1.3 ui-monospace, Menlo, Consolas, monospace; color: var(--muted); }
-  .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 4px; }
-  .actions button, .actions a { flex: 1 1 45%; padding: 6px 8px; text-align: center; }
-  .actions a { background: var(--card); border: 1px solid var(--line); border-radius: 8px;
-               color: inherit; text-decoration: none; }
-  .actions button.primary { flex-basis: 100%; }
-  dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink);
-           width: min(560px, calc(100vw - 32px)); padding: 18px; }
-  dialog::backdrop { background: rgba(0,0,0,.45); }
-  dialog h2 { margin: 0 0 12px; font-size: 18px; }
-  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 3px; }
-  .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
-  table { border-collapse: collapse; width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
-  td, th { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); }
-  .hint { color: var(--muted); font-size: 13px; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--room); color: var(--text); font: 400 15px/1.5 var(--font);
+         -webkit-font-smoothing: antialiased; padding-bottom: env(safe-area-inset-bottom); }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .frame, .pill { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8;
+          stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  :focus-visible { outline: 2px solid var(--subtitle); outline-offset: 2px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* ---------- header ---------- */
+  header { background: var(--raised); border-bottom: 1px solid var(--line);
+           padding: 12px 16px; padding-top: max(12px, env(safe-area-inset-top)); }
+  .bar { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .brand { font-weight: 700; font-size: 19px; letter-spacing: -.03em; margin: 0 4px 0 0; line-height: 1; }
+  .brand { order: 1; }
+  .search { position: relative; flex: 1 1 320px; order: 2; }
+  .search svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
+  #q { width: 100%; height: 48px; background: var(--inset); border: 1px solid var(--line); border-radius: var(--r-md);
+       padding: 0 16px 0 44px; font-size: 17px; outline: none; transition: border-color .15s; }
+  #q::placeholder { color: var(--text-3); }
+  #q:focus { border-color: var(--subtitle); }
+  .bar-end { display: flex; align-items: center; gap: 8px; order: 3; }
+  /* phones: name and actions on one row, the search gets a full row of its own */
+  @media (max-width: 640px) { .bar-end { order: 2; margin-left: auto; } .search { order: 3; flex-basis: 100%; } }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px;
+         padding: 0 14px; border-radius: var(--r-sm); border: 1px solid var(--line-strong);
+         background: transparent; color: var(--text); text-decoration: none; white-space: nowrap;
+         transition: background-color .15s, border-color .15s, transform .12s var(--ease); }
+  .btn:hover { background: var(--lifted); }
+  .btn:active { transform: scale(.97); }
+  .btn.solid { background: var(--text); color: #111; border-color: var(--text); font-weight: 600; }
+  .btn.solid:hover { background: #fff; }
+  .btn.quiet { border-color: transparent; color: var(--text-2); }
+  .btn.quiet[aria-pressed="true"] { color: var(--subtitle); }
+
+  /* ---------- under the search ---------- */
+  main { max-width: 1160px; margin: 0 auto; padding: 16px 16px 48px; }
+  .tabs { display: none; gap: 4px; margin-bottom: 12px; }
+  body.curate .tabs { display: flex; }
+  .tab { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-2); padding: 8px 12px; min-height: 40px; }
+  .tab[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--subtitle); }
+  .quick { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 8px; scrollbar-width: none; }
+  .quick::-webkit-scrollbar { display: none; }
+  .pill { flex: none; min-height: 36px; padding: 0 14px; border-radius: var(--r-pill); background: transparent;
+          border: 1px solid var(--line-strong); color: var(--text-2); transition: background-color .15s, color .15s; }
+  .pill:hover { background: var(--lifted); color: var(--text); }
+  .pill[aria-pressed="true"] { background: var(--lifted); color: var(--text); border-color: var(--text-3); }
+  /* what the search understood, set like a subtitle line */
+  #status { min-height: 24px; margin: 0 0 16px; color: var(--text-3); font-size: 14px; }
+  #status .read { color: var(--subtitle); font-weight: 500; }
+  #status .dim { color: var(--text-3); }
+
+  /* ---------- grid and tiles ---------- */
+  .grid { display: grid; gap: 24px 16px; grid-template-columns: repeat(auto-fill, minmax(268px, 1fr)); }
+  @media (max-width: 560px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; } }
+  .card { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+  .frame { position: relative; aspect-ratio: 4 / 3; background: #000; border-radius: var(--r-md); overflow: hidden;
+           border: 1px solid var(--line); cursor: pointer; transition: border-color .15s; }
+  .frame:hover, .frame:focus-visible, .frame.live { border-color: var(--line-strong); }
+  .frame video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+  .sub { position: absolute; left: 12px; right: 12px; bottom: 14px; text-align: center; pointer-events: none;
+         color: var(--subtitle); font-weight: 600; font-size: 15px; line-height: 1.3; opacity: 0; transform: translateY(4px);
+         transition: opacity .18s var(--ease), transform .18s var(--ease);
+         text-shadow: 0 0 3px #000, 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
+         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .frame.live .sub { opacity: 1; transform: none; }
+  .snd { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; border-radius: var(--r-pill);
+         display: grid; place-items: center; background: rgba(0, 0, 0, .6); color: var(--text);
+         opacity: 0; transition: opacity .15s; pointer-events: none; }
+  .frame.live .snd { opacity: 1; }
+  .bar-time { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--subtitle);
+              transform-origin: left; transform: scaleX(0); opacity: 0; }
+  .frame.live .bar-time { opacity: 1; }
+  .row { display: flex; align-items: flex-start; gap: 8px; }
+  .titles { flex: 1; min-width: 0; }
+  .name { font-weight: 600; line-height: 1.3; overflow: hidden; overflow-wrap: anywhere; text-wrap: pretty;
+          display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .by { color: var(--text-3); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acts { display: flex; gap: 4px; flex: none; }
+  .acts .btn { min-height: 40px; min-width: 40px; padding: 0 12px; }
+  .acts .btn.iconly { padding: 0; width: 40px; }
+  @media (max-width: 560px) { .acts .btn .lbl { display: none; } .acts .btn { padding: 0; width: 40px; } }
+  /* touch screens: 44px targets; with two buttons (Copy + Send) they move under the name */
+  @media (pointer: coarse) { .acts .btn, .acts .btn.iconly { min-height: 44px; min-width: 44px; } }
+  @media (max-width: 560px) { .row:has(.acts .btn + .btn) { flex-wrap: wrap; }
+                              .row:has(.acts .btn + .btn) .titles { flex-basis: 100%; } }
+  .btn.done { border-color: var(--subtitle); color: var(--subtitle); }
+
+  /* curation only: scores, flags, editing */
+  .curate-only { display: none; }
+  body.curate .curate-only { display: flex; }
+  .chips { flex-wrap: wrap; gap: 4px; }
+  .chip { font-size: 12.5px; padding: 1px 8px; border-radius: var(--r-pill); border: 1px solid var(--line-strong); color: var(--text-2); }
+  .chip.warn { border-color: var(--danger); color: var(--danger); }
+  .metric { font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .tools { gap: 8px; }
+
+  .empty { grid-column: 1 / -1; padding: 64px 16px; text-align: center; color: var(--text-2); }
+  .empty strong { display: block; font-size: 19px; color: var(--text); margin-bottom: 6px; font-weight: 600; }
+
+  /* ---------- tables and dialogs ---------- */
+  table { border-collapse: collapse; width: 100%; background: var(--raised); border: 1px solid var(--line); border-radius: var(--r-md); }
+  td, th { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  th { color: var(--text-3); font-weight: 500; font-size: 13px; }
+  dialog { border: 1px solid var(--line-strong); border-radius: 16px; background: var(--raised); color: var(--text);
+           width: min(560px, calc(100vw - 32px)); padding: 24px; max-height: calc(100dvh - 32px); overflow: auto;
+           overscroll-behavior: contain; }
+  dialog::backdrop { background: rgba(0, 0, 0, .7); }
+  dialog h2 { margin: 0 0 16px; font-size: 19px; letter-spacing: -.01em; }
+  label { display: block; font-size: 13.5px; color: var(--text-2); margin: 14px 0 6px; }
+  input[type=text], textarea, input[type=file] { width: 100%; background: var(--inset); border: 1px solid var(--line);
+         border-radius: var(--r-sm); padding: 10px 12px; outline: none; }
+  input[type=text]:focus, textarea:focus { border-color: var(--subtitle); }
+  input[type=checkbox] { accent-color: var(--subtitle); margin-right: 8px; }
+  .actions-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; }
+  .hint { color: var(--text-3); font-size: 13.5px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sub, .btn, .pill, .frame { transition: none; }
+    .btn:active { transform: none; }
+  }
 </style>
 </head>
 <body>
 <header>
   <div class="bar">
-    <span class="brand">memeclip</span>
-    <input id="q" type="search" placeholder="what is said, who is in it, what happens…" autofocus>
-    <button id="tab-search" class="on">Search</button>
-    <button id="tab-review">Needs review</button>
-    <button id="tab-failed">Not found</button>
-    <button id="open-upload" class="primary">Add clip</button>
+    <h1 class="brand" translate="no">memeclip</h1>
+    <div class="search">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <label for="q" class="sr">Search memes</label>
+      <input id="q" type="search" placeholder="What's the meme? Try “salary day” or a line from it…" autocomplete="off" spellcheck="false" enterkeyhint="search">
+    </div>
+    <div class="bar-end">
+      <button id="curate" class="btn quiet" type="button" aria-pressed="false">Curate</button>
+      <button id="open-upload" class="btn solid" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add clip</button>
+    </div>
   </div>
 </header>
 
 <main>
-  <p id="status"></p>
+  <div class="tabs" role="group" aria-label="Library views">
+    <button class="tab" id="tab-search" type="button" aria-pressed="true">Library</button>
+    <button class="tab" id="tab-review" type="button" aria-pressed="false">Needs review</button>
+    <button class="tab" id="tab-failed" type="button" aria-pressed="false">Not found</button>
+  </div>
+  <div class="quick" id="quick" aria-label="Quick searches"></div>
+  <p id="status" role="status" aria-live="polite"></p>
   <div id="grid" class="grid"></div>
   <div id="table"></div>
 </main>
@@ -79,17 +189,18 @@
 <dialog id="upload">
   <form id="upload-form">
     <h2>Add a clip</h2>
-    <input type="file" name="file" accept="video/*" required>
-    <label>Title, as the source wrote it</label><input type="text" name="title">
-    <label>Caption</label><input type="text" name="caption">
-    <label>Language code (hi, en, ta …). Leave empty to auto-detect</label><input type="text" name="language">
-    <label>What people call this meme (comma separated)</label><input type="text" name="folk_names">
-    <label>People in it (comma separated)</label><input type="text" name="people">
-    <label>Film or show</label><input type="text" name="source_title">
+    <label for="u-file">Video file</label><input id="u-file" type="file" name="file" accept="video/*" required>
+    <label for="u-title">Title, as the source wrote it</label><input id="u-title" type="text" autocomplete="off" name="title">
+    <label for="u-caption">Caption</label><input id="u-caption" type="text" autocomplete="off" name="caption">
+    <label for="u-lang">Language code (hi, en, ta …). Leave empty to auto-detect</label><input id="u-lang" type="text" autocomplete="off" name="language" spellcheck="false">
+    <label for="u-folk">What people call this meme (comma separated)</label><input id="u-folk" type="text" autocomplete="off" name="folk_names">
+    <label for="u-people">People in it (comma separated)</label><input id="u-people" type="text" autocomplete="off" name="people">
+    <label for="u-film">Film or show</label><input id="u-film" type="text" autocomplete="off" name="source_title">
     <p class="hint">The clip is queued. It shows up in search once the worker has processed it.</p>
-    <div class="row">
-      <button type="button" data-close>Cancel</button>
-      <button class="primary">Upload</button>
+    <p class="hint" id="upload-error" role="alert"></p>
+    <div class="actions-row">
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button class="btn solid" id="upload-submit">Upload</button>
     </div>
   </form>
 </dialog>
@@ -97,18 +208,19 @@
 <dialog id="edit">
   <form id="edit-form">
     <h2>Edit clip</h2>
-    <label>What people call this meme (comma separated)</label><input type="text" name="folk_names">
-    <label>What is said (Roman script)</label><textarea name="transcript_roman" rows="2"></textarea>
-    <label>People (comma separated)</label><input type="text" name="people">
-    <label>Film or show</label><input type="text" name="source_title">
-    <label>What happens on screen</label><textarea name="description" rows="2"></textarea>
-    <label>Reactions (comma separated)</label><input type="text" name="reactions">
-    <label>Use when (comma separated)</label><input type="text" name="use_when">
-    <label>Topics (comma separated)</label><input type="text" name="topics">
-    <label><input type="checkbox" name="reviewed"> Mark as reviewed</label>
-    <div class="row">
-      <button type="button" data-close>Cancel</button>
-      <button class="primary">Save</button>
+    <label for="e-folk">What people call this meme (comma separated)</label><input id="e-folk" type="text" autocomplete="off" name="folk_names">
+    <label for="e-said">What is said (Roman script)</label><textarea id="e-said" name="transcript_roman" rows="2"></textarea>
+    <label for="e-people">People (comma separated)</label><input id="e-people" type="text" autocomplete="off" name="people">
+    <label for="e-film">Film or show</label><input id="e-film" type="text" autocomplete="off" name="source_title">
+    <label for="e-desc">What happens on screen</label><textarea id="e-desc" name="description" rows="2"></textarea>
+    <label for="e-react">Reactions (comma separated)</label><input id="e-react" type="text" autocomplete="off" name="reactions">
+    <label for="e-use">Use when (comma separated)</label><input id="e-use" type="text" autocomplete="off" name="use_when">
+    <label for="e-topics">Topics (comma separated)</label><input id="e-topics" type="text" autocomplete="off" name="topics">
+    <label><input type="checkbox" name="reviewed">Mark as reviewed</label>
+    <p class="hint" id="edit-error" role="alert"></p>
+    <div class="actions-row">
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button class="btn solid" id="edit-submit">Save</button>
     </div>
   </form>
 </dialog>
@@ -121,7 +233,37 @@ const el = (tag, cls, text) => {
   if (text != null) n.textContent = text;   // textContent, never innerHTML: clip text is untrusted
   return n;
 };
+
+// Fixed icon markup only (no clip data ever goes through innerHTML).
+const ICONS = {
+  link: '<path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11.5 4.43"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.33-1.33"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  download: '<path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  volume: '<path d="M11 5 6 9H3v6h3l5 4Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>',
+  mute: '<path d="M11 5 6 9H3v6h3l5 4Z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/>',
+};
+function icon(name) {
+  const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  s.setAttribute("class", "i"); s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("aria-hidden", "true");
+  s.innerHTML = ICONS[name];
+  return s;
+}
+function button(cls, label, iconName, { text = true } = {}) {
+  const b = el("button", "btn " + cls);
+  b.type = "button";
+  b.append(icon(iconName));
+  const t = el("span", "lbl", label);
+  if (!text) t.className = "sr";
+  b.append(t);
+  if (!text) b.setAttribute("aria-label", label);
+  return b;
+}
+function setLabel(b, text) { b.querySelector(".lbl, .sr").textContent = text; }
+
 const LISTS = ["folk_names", "people", "reactions", "use_when", "topics"];
+const QUICK = ["shocked", "late", "money", "confused", "angry", "happy", "speech"];
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
 let mode = "search", lastQuery = "", editing = null, timer = null;
 
 async function api(path, options) {
@@ -131,10 +273,10 @@ async function api(path, options) {
 }
 
 // A web page cannot put a video file on the clipboard: browsers only accept text,
-// HTML and PNG there. So the card offers the closest real equivalents:
+// HTML and PNG there. So a clip offers the closest real equivalents:
 //   Send          the .mp4 file itself, through the system share sheet (Web Share)
 //   drag          drop the .mp4 file into Finder, a folder or a chat (Chrome / Edge)
-//   Download      save the .mp4
+//   Download      save the .mp4 (curate view)
 //   Copy link     the short share link (/c/<id>); chat apps unfurl it as the video
 // Each one counts as a share, so the query that found the clip is learned.
 function fileName(c) {
@@ -164,44 +306,70 @@ function recordShare(c) {
     .catch(() => {});
 }
 
-function flash(button, text, back) {
-  button.textContent = text;
-  setTimeout(() => (button.textContent = back), 1600);
+function flash(b, text, back) {
+  setLabel(b, text);
+  b.classList.add("done");
+  setTimeout(() => { setLabel(b, back); b.classList.remove("done"); }, 1600);
 }
 
-// Hover to play: a card's clip plays (muted) while the pointer is over it and
-// stops when it leaves. Only one clip plays at a time. Click toggles sound.
-// Touch screens have no hover, so a tap plays or stops instead.
+// Hover to play: a clip plays (muted) while the pointer is over it and stops when
+// it leaves. Only one clip plays at a time. Click toggles sound. Touch screens have
+// no hover, so a tap plays or stops instead. Keyboard focus plays too. With reduced
+// motion nothing plays on its own: click or Enter plays.
 let playing = null;
 
-function playOnly(video) {
-  if (playing && playing !== video) stopClip(playing);
-  playing = video;
-  video.play().catch(() => {});   // muted autoplay is always allowed
+function playOnly(frame) {
+  if (playing && playing !== frame) stopClip(playing);
+  playing = frame;
+  frame.classList.add("live");
+  frame._video.play().catch(() => {});   // muted autoplay is always allowed
 }
 
-function stopClip(video) {
-  video.pause();
-  video.currentTime = 0;
-  video.muted = true;
-  if (playing === video) playing = null;
+function stopClip(frame) {
+  const v = frame._video;
+  v.pause();
+  v.currentTime = 0;
+  v.muted = true;
+  frame._sound(false);
+  frame.classList.remove("live");
+  frame._time.style.transform = "scaleX(0)";
+  if (playing === frame) playing = null;
 }
 
 function card(c) {
-  const node = el("div", "card");
+  const node = el("article", "card");
+
+  const frame = el("div", "frame");
+  frame.tabIndex = 0;
+  frame.setAttribute("role", "button");
+  frame.setAttribute("aria-label", `Play ${c.folk_names[0] || c.title || "clip"}`);
   const video = el("video");
   video.src = c.url; video.poster = c.thumb || ""; video.preload = "none"; video.loop = true; video.playsInline = true;
   video.muted = true;
-  video.onpointerenter = (e) => { if (e.pointerType === "mouse") playOnly(video); };
-  video.onpointerleave = (e) => { if (e.pointerType === "mouse") stopClip(video); };
-  video.onclick = (e) => {
-    if (e.pointerType && e.pointerType !== "mouse") {          // tap on a touch screen
-      if (video.paused) playOnly(video); else stopClip(video);
+  const sub = el("div", "sub", c.transcript_roman ? c.transcript_roman.slice(0, 120) : "");
+  const snd = el("div", "snd"); snd.append(icon("mute"));
+  const time = el("div", "bar-time");
+  frame.append(video, sub, snd, time);
+  frame._video = video; frame._time = time;
+  frame._sound = (on) => { snd.replaceChildren(icon(on ? "volume" : "mute")); };
+
+  video.ontimeupdate = () => { if (video.duration) time.style.transform = `scaleX(${video.currentTime / video.duration})`; };
+  frame.onpointerenter = (e) => { if (e.pointerType === "mouse" && !reduceMotion.matches) playOnly(frame); };
+  frame.onpointerleave = (e) => { if (e.pointerType === "mouse") stopClip(frame); };
+  frame.onfocus = () => { if (frame.matches(":focus-visible") && !reduceMotion.matches) playOnly(frame); };
+  frame.onblur = () => stopClip(frame);
+  const toggle = (touch) => {
+    if (touch || reduceMotion.matches) {                       // tap, or reduced motion: play or stop
+      if (frame.classList.contains("live")) stopClip(frame); else playOnly(frame);
     } else {                                                  // mouse: already playing, toggle sound
       video.muted = !video.muted;
-      if (video.paused) playOnly(video);
+      frame._sound(!video.muted);
+      if (video.paused) playOnly(frame);
     }
   };
+  frame.onclick = (e) => toggle(!!e.pointerType && e.pointerType !== "mouse");
+  frame.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(true); } };
+
   // Dragging the video out drops the .mp4 file (Chrome / Edge read DownloadURL).
   video.draggable = true;
   video.ondragstart = (e) => {
@@ -212,28 +380,28 @@ function card(c) {
     e.dataTransfer.effectAllowed = "copy";
     recordShare(c);
   };
-  node.append(video);
+  node.append(frame);
 
-  const body = el("div", "body");
-  body.append(el("div", "name", c.folk_names[0] || c.title || "(untitled)"));
-  if (c.transcript_roman) body.append(el("div", "said", "“" + c.transcript_roman + "”"));
+  const row = el("div", "row");
+  const titles = el("div", "titles");
+  titles.append(el("div", "name", c.folk_names[0] || c.title || "(untitled)"));
+  const by = [...c.people, c.source_title].filter(Boolean).join(" · ");
+  if (by) titles.append(el("div", "by", by));
+  row.append(titles);
 
-  const chips = el("div", "chips");
-  for (const p of c.people) chips.append(el("span", "chip", p));
-  if (c.source_title) chips.append(el("span", "chip", c.source_title));
-  for (const r of c.reactions || []) chips.append(el("span", "chip topic", r));
-  for (const t of c.topics || []) chips.append(el("span", "chip topic", "#" + t));
-  for (const r of c.review_reasons) chips.append(el("span", "chip warn", r.replaceAll("_", " ")));
-  if (chips.children.length) body.append(chips);
-
-  const signals = `shared ${c.shares} · seen ${c.duplicates_seen}×`;
-  body.append(el("div", "score", c.score == null ? signals
-    : `score ${c.score} · keyword ${c.kw} · meaning ${c.sem} · topic ${c.tm} · ${signals}`));
-
-  const actions = el("div", "actions");
+  const acts = el("div", "acts");
+  const copy = button("", "Copy link", "link");
+  copy.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(c.share_url || new URL(c.url, location.href).href);
+      recordShare(c);
+      flash(copy, "Copied", "Copy link");
+    } catch { flash(copy, "Copy failed", "Copy link"); }
+  };
+  acts.append(copy);
 
   if (canSendFiles) {
-    const send = el("button", "primary", "Send video");
+    const send = button("iconly", "Send video", "send", { text: false });
     // Fetch the file before the click lands: some browsers (Safari) only allow the
     // share sheet while the click is still "fresh", so there is no time to download then.
     const warm = () => clipFile(c).catch(() => {});
@@ -246,57 +414,77 @@ function card(c) {
         flash(send, "Sent", "Send video");
       } catch (e) {
         if (e.name === "AbortError") return;                 // closed the share sheet
-        if (e.name === "NotAllowedError") flash(send, "Tap again to send", "Send video");
-        else flash(send, "Could not send", "Send video");
+        flash(send, e.name === "NotAllowedError" ? "Tap again to send" : "Could not send", "Send video");
       }
     };
-    actions.append(send);
+    acts.append(send);
   }
+  row.append(acts);
+  node.append(row);
 
-  const download = el("a", "", "Download");
-  download.href = c.url;
-  download.download = fileName(c);
-  download.onclick = () => { recordShare(c); };
+  // ---- curation only ----
+  const chips = el("div", "curate-only chips");
+  for (const r of c.reactions || []) chips.append(el("span", "chip", r));
+  for (const t of c.topics || []) chips.append(el("span", "chip", "#" + t));
+  for (const r of c.review_reasons) chips.append(el("span", "chip warn", r.replaceAll("_", " ")));
+  if (chips.children.length) node.append(chips);
 
-  const copy = el("button", "", "Copy link");
-  copy.onclick = async () => {
-    try {
-      await navigator.clipboard.writeText(c.share_url || new URL(c.url, location.href).href);
-      recordShare(c);
-      flash(copy, "Link copied", "Copy link");
-    } catch { flash(copy, "Copy failed", "Copy link"); }
-  };
+  const signals = `shared ${c.shares} · seen ${c.duplicates_seen}×`;
+  node.append(Object.assign(el("div", "curate-only metric", c.score == null ? signals
+    : `score ${c.score} · keyword ${c.kw} · meaning ${c.sem} · topic ${c.tm} · ${signals}`), {}));
 
-  const edit = el("button", "", "Edit");
+  const tools = el("div", "curate-only tools");
+  const download = button("", "Download", "download");
+  download.onclick = async () => { recordShare(c); const a = el("a"); a.href = c.url; a.download = fileName(c); a.click(); };
+  const edit = button("", "Edit", "edit");
   edit.onclick = () => openEdit(c.id);
-  actions.append(download, copy, edit);
-  body.append(actions);
-  node.append(body);
+  tools.append(download, edit);
+  node.append(tools);
   return node;
 }
 
-function showCards(results, message) {
+function showCards(results, status, emptyTitle, emptyHelp) {
   playing = null;
   $("table").replaceChildren();
-  $("grid").replaceChildren(...results.map(card));
-  $("status").textContent = message;
+  if (!results.length) {
+    const e = el("div", "empty");
+    e.append(el("strong", "", emptyTitle), el("span", "", emptyHelp));
+    $("grid").replaceChildren(e);
+  } else {
+    $("grid").replaceChildren(...results.map(card));
+  }
+  $("status").replaceChildren(...status);
+}
+
+function intentText(intent) {
+  const parts = Object.entries(intent || {}).map(([k, p]) => (document.body.classList.contains("curate") ? `${k} ${p}` : k));
+  return parts.length ? parts.join(", ") : "";
 }
 
 async function runSearch() {
   lastQuery = $("q").value.trim();
+  for (const b of $("quick").children) b.setAttribute("aria-pressed", String(b.textContent === lastQuery));
   try {
     const data = await api(`/search?q=${encodeURIComponent(lastQuery)}`);
-    showCards(data.results, lastQuery
-      ? `${data.count} result${data.count === 1 ? "" : "s"} for “${lastQuery}”`
-        + (Object.keys(data.intent || {}).length
-           ? " · read as " + Object.entries(data.intent).map(([k, p]) => `${k} ${p}`).join(", ") : "")
-      : (data.count ? "Trending" : "No clips yet. Add one, or drop files into data/inbox."));
-  } catch (e) { $("status").textContent = "Search failed: " + e.message; }
+    const status = [];
+    if (!lastQuery) {
+      status.push(el("span", "", data.count ? "Trending now" : ""));
+    } else {
+      status.push(el("span", "", `${data.count} clip${data.count === 1 ? "" : "s"} · `));
+      const read = intentText(data.intent);
+      status.push(read ? Object.assign(el("span", "read", `reading it as ${read}`)) : el("span", "dim", "matched on the words"));
+    }
+    showCards(data.results, status,
+      lastQuery ? `Nothing for “${lastQuery}” yet` : "No clips yet",
+      lastQuery ? "Try other words, a line from the clip, or a mood like shocked or late."
+                : "Add a clip, or drop video files into data/inbox.");
+  } catch (e) { $("status").textContent = `Search failed: ${e.message}. Check that memeclip is running, then search again.`; }
 }
 
 async function runReview() {
   const data = await api("/review");
-  showCards(data.results, `${data.count} clip${data.count === 1 ? "" : "s"} the pipeline was unsure about`);
+  showCards(data.results, [el("span", "", `${data.count} clip${data.count === 1 ? "" : "s"} the pipeline was unsure about`)],
+            "Nothing to review", "Every clip passed its checks.");
 }
 
 async function runFailed() {
@@ -304,7 +492,7 @@ async function runFailed() {
   $("grid").replaceChildren();
   $("status").textContent = "Searches that found nothing. Each one is a missing clip or a missing way to find one.";
   const table = el("table");
-  const head = el("tr"); head.append(el("th", "", "Query"), el("th", "", "Times"));
+  const head = el("tr"); head.append(el("th", "", "Search"), el("th", "", "Times"));
   table.append(head);
   for (const q of data.queries) {
     const tr = el("tr"); tr.append(el("td", "", q.query), el("td", "", q.times)); table.append(tr);
@@ -314,8 +502,16 @@ async function runFailed() {
 
 function setMode(next) {
   mode = next;
-  for (const m of ["search", "review", "failed"]) $("tab-" + m).classList.toggle("on", m === mode);
+  for (const m of ["search", "review", "failed"]) $("tab-" + m).setAttribute("aria-pressed", String(m === mode));
   ({ search: runSearch, review: runReview, failed: runFailed })[mode]();
+}
+
+function setCurate(on) {
+  document.body.classList.toggle("curate", on);
+  $("curate").setAttribute("aria-pressed", String(on));
+  if (!on && mode !== "search") mode = "search";
+  history.replaceState(null, "", on ? "#curate" : location.pathname + location.search);
+  setMode(mode);
 }
 
 async function openEdit(id) {
@@ -334,25 +530,52 @@ $("edit-form").onsubmit = async (e) => {
   for (const k of LISTS) body[k] = f[k].value.split(",").map((s) => s.trim()).filter(Boolean);
   for (const k of ["transcript_roman", "source_title", "description"]) body[k] = f[k].value;
   if (f.reviewed.checked) body.reviewed = true;
-  await api(`/clips/${editing}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  $("edit").close();
-  setMode(mode);
+  const submit = $("edit-submit");
+  submit.disabled = true; submit.textContent = "Saving…"; $("edit-error").textContent = "";
+  try {
+    await api(`/clips/${editing}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    $("edit").close();
+    setMode(mode);
+  } catch (err) {
+    $("edit-error").textContent = `Not saved: ${err.message}. Your changes are still here; try Save again.`;
+  } finally { submit.disabled = false; submit.textContent = "Save"; }
 };
 
 $("upload-form").onsubmit = async (e) => {
   e.preventDefault();
+  const submit = $("upload-submit");
+  submit.disabled = true; submit.textContent = "Uploading…"; $("upload-error").textContent = "";
   try {
     const out = await api("/upload", { method: "POST", body: new FormData(e.target) });
-    $("status").textContent = `Queued ${out.queued_as}. Search again in a few seconds.`;
+    $("status").textContent = `Queued ${out.queued_as}. It shows up in search in a few seconds.`;
     e.target.reset();
     $("upload").close();
-  } catch (err) { $("status").textContent = "Upload failed: " + err.message; $("upload").close(); }
+  } catch (err) {
+    $("upload-error").textContent = `Upload failed: ${err.message}. Check the file is a video under 30 seconds, then try again.`;
+  } finally { submit.disabled = false; submit.textContent = "Upload"; }
 };
 
+for (const word of QUICK) {
+  const b = el("button", "pill", word);
+  b.type = "button";
+  b.setAttribute("aria-pressed", "false");
+  b.onclick = () => { $("q").value = lastQuery === word ? "" : word; setMode("search"); };
+  $("quick").append(b);
+}
+
 $("open-upload").onclick = () => $("upload").showModal();
+$("curate").onclick = () => setCurate(!document.body.classList.contains("curate"));
 for (const b of document.querySelectorAll("[data-close]")) b.onclick = () => b.closest("dialog").close();
 for (const m of ["search", "review", "failed"]) $("tab-" + m).onclick = () => setMode(m);
-$("q").oninput = () => { clearTimeout(timer); timer = setTimeout(() => setMode("search"), 400); };
+$("q").oninput = () => { clearTimeout(timer); timer = setTimeout(() => setMode("search"), 350); };
+// #curate in the address opens the curation view (also when only the # part changes)
+const curateFromHash = () => {
+  const on = location.hash === "#curate";
+  if (on !== document.body.classList.contains("curate")) setCurate(on);
+};
+addEventListener("hashchange", curateFromHash);
+if (location.hash === "#curate") { document.body.classList.add("curate"); $("curate").setAttribute("aria-pressed", "true"); }
+if (matchMedia("(pointer: fine)").matches) $("q").focus();
 setMode("search");
 </script>
 </body>
