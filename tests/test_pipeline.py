@@ -422,3 +422,23 @@ def test_20_sidecar_explanation_counts_as_human(monkeypatch):
     assert process(again)["status"] == "duplicate"
     row = clip(first["clip_id"])
     assert row["gist"] == "Corrected by a person." and row["explain_source"] == "sidecar"
+
+
+def test_21_needs_meaning_queue_shrinks_as_people_write():
+    from fastapi.testclient import TestClient
+
+    from app import api
+
+    with TestClient(api.app) as client:
+        before = client.get("/needs-meaning").json()
+        assert before["count"] >= 1 and before["total"] >= before["count"]
+        target = before["results"][0]
+        assert target["gist"] == "" and target["why_funny"] == ""
+        done = client.patch(f"/clips/{target['id']}", json={"why_funny": "Broken English played straight.",
+                                                              "send_when": ["when advice sounds funnier than it should"]}).json()
+        assert done["explain_source"] == "manual" and done["send_when"] == ["when advice sounds funnier than it should"]
+        after = client.get("/needs-meaning").json()
+        assert after["count"] == before["count"] - 1 and target["id"] not in [r["id"] for r in after["results"]]
+        # the page itself carries the new view and the dialog's video + Save & next
+        page = client.get("/").text
+        assert "tab-meaning" in page and "edit-next" in page and 'id="e-video"' in page
