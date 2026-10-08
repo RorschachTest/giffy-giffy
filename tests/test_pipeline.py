@@ -285,3 +285,80 @@ def test_14_worker_processes_the_inbox():
     assert top("rgb bars")
     row = clip(top("rgb bars")[0])
     assert row["people"] == ["Paresh Rawal"] and "babu bai" in row["s_people"]
+
+
+def test_15_topics_from_laya_rank_search(monkeypatch):
+    """Laya says the query is about 'work'; the clip tagged work comes first even
+    though no word of the query is in it."""
+    from app import laya
+
+    with db.session() as conn:
+        conn.execute("UPDATE clips SET topics = '{work}' WHERE id = %s", (STATE["silent"],))
+        indexing.refresh(conn, STATE["silent"])
+    query = "zzq vvx boss daanta"
+    monkeypatch.setattr(laya, "query_intent", lambda q: {})
+    assert STATE["silent"] not in top(query)
+    monkeypatch.setattr(laya, "query_intent", lambda q: {"work": 0.8})
+    with db.session() as conn:
+        rows = search.search(conn, query, log_query=False)
+    assert rows[0]["id"] == STATE["silent"] and rows[0]["tm"] == pytest.approx(0.8)
+
+
+def test_16_sidecar_topics_are_kept_and_merged():
+    assert pipeline.pipeline_topics(["Work", "late"], ["work", "money"]) == ["Work", "late", "money"]
+
+
+def test_17_share_links_unfurl_as_video(monkeypatch):
+    """The link a person pastes is /c/<id>; its page carries what chat apps read
+    to draw the clip as a video."""
+    from fastapi.testclient import TestClient
+
+    from app import api
+
+    with TestClient(api.app) as client:
+        hit = client.get("/search", params={"q": "rasode me kon tha"}).json()["results"][0]
+        share_id = hit["share_id"]
+        assert len(share_id) == 10 and hit["share_url"] == f"http://testserver/c/{share_id}"
+
+        page = client.get(f"/c/{share_id}")
+        assert page.status_code == 200
+        body = page.text
+        assert f'<meta property="og:video" content="http://testserver/media/{hit["url"].split("/")[-1]}">' in body
+        assert '<meta property="og:video:type" content="video/mp4">' in body
+        assert '<meta name="twitter:card" content="player">' in body
+        assert f'content="http://testserver/c/{share_id}/embed"' in body
+        assert "application/json+oembed" in body
+
+        assert client.get(f"/c/{share_id}/embed").status_code == 200
+        o = client.get("/oembed", params={"url": f"http://testserver/c/{share_id}"}).json()
+        assert o["type"] == "video" and f"/c/{share_id}/embed" in o["html"]
+
+        assert client.get("/c/zzzzzzzzzz").status_code == 404
+        assert client.get("/c/abc").status_code == 404
+        assert client.get("/oembed", params={"url": "https://example.com/x"}).status_code == 404
+
+        monkeypatch.setattr(config, "PUBLIC_BASE_URL", "https://clips.example.com/")
+        assert client.get(f"/clips/{hit['id']}").json()["share_url"] == f"https://clips.example.com/c/{share_id}"
+        assert 'content="https://clips.example.com/media/' in client.get(f"/c/{share_id}").text
+
+
+def test_18_themes_are_plug_and_play(monkeypatch):
+    """The page loads the theme named in config; ?theme= previews another; an
+    unknown name falls back; every file in static/themes is a theme."""
+    from fastapi.testclient import TestClient
+
+    from app import api
+
+    names = api.theme_names()
+    assert {"picker", "sticker", "viza"} <= set(names)
+    with TestClient(api.app) as client:
+        monkeypatch.setattr(config, "UI_THEME", "picker")
+        page = client.get("/").text
+        assert 'data-theme="picker"' in page and "/static/themes/picker.css?v=" in page and "__THEME__" not in page
+        assert "/static/themes/viza.css" in client.get("/", params={"theme": "viza"}).text
+        assert "/static/themes/picker.css" in client.get("/", params={"theme": "../etc/passwd"}).text
+        assert client.get("/themes").json() == {"active": "picker", "themes": names}
+        for name in names:
+            assert client.get(f"/static/themes/{name}.css").status_code == 200
+        assert client.get("/static/base.css").status_code == 200
+        assert client.get("/static/scenes/scenes.json").json()["billboard"]["quad"]

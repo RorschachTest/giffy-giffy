@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS clips (
     description      TEXT NOT NULL DEFAULT '',         -- what happens on screen
     reactions        TEXT[] NOT NULL DEFAULT '{}',
     use_when         TEXT[] NOT NULL DEFAULT '{}',
+    topics           TEXT[] NOT NULL DEFAULT '{}',     -- what it is about (Laya, sidecar or by hand)
 
     -- EVIDENCE: real queries that ended in a share, {normalised query: count}
     learned_queries  JSONB NOT NULL DEFAULT '{}',
@@ -59,6 +60,13 @@ CREATE TABLE IF NOT EXISTS clips (
     raw              JSONB NOT NULL DEFAULT '{}'        -- raw output of every step, for reprocessing
 );
 
+-- Columns added after the first release. There are no migrations, so each one is
+-- added here in a way that is a no-op on a database that already has it.
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS topics TEXT[] NOT NULL DEFAULT '{}';
+
+CREATE INDEX IF NOT EXISTS clips_topics ON clips USING gin (topics);
+-- share links are /c/<first 10 hex of sha256> (app/share.py)
+CREATE INDEX IF NOT EXISTS clips_share_id ON clips (left(sha256, 10));
 CREATE INDEX IF NOT EXISTS clips_s_names_trgm   ON clips USING gin (s_names gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS clips_s_said_trgm    ON clips USING gin (s_said gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS clips_s_people_trgm  ON clips USING gin (s_people gin_trgm_ops);

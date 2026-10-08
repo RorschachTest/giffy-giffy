@@ -1,7 +1,8 @@
 """HTTP API and the small test page.
 
-    GET   /                     test page
-    GET   /search?q=...         hybrid search (empty q = trending)
+    GET   /                     the page, in the theme set by UI_THEME (?theme=<name> to preview)
+    GET   /themes               the available themes
+    GET   /search?q=...         hybrid search (empty q = trending); `intent` is Laya's reading
     POST  /clips/{id}/share     count a share and learn the query that led to it
     GET   /clips/{id}           everything we know about one clip
     PATCH /clips/{id}           correct or add facts by hand
@@ -9,6 +10,7 @@
     GET   /queries/failed       searches that found nothing
     POST  /upload               drop a clip into the inbox from the browser
     GET   /media/...            the clip files
+    GET   /c/{share_id}         share link: video page that chat apps unfurl (share.py)
 """
 from __future__ import annotations
 
@@ -19,19 +21,25 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import config, db, indexing, search as search_mod
+from . import config, db, indexing, laya, search as search_mod, share as share_mod
 from .embed import get_embedder
 
 STATIC = Path(__file__).with_name("static")
+THEMES = STATIC / "themes"
+
+
+def theme_names() -> list[str]:
+    """Every app/static/themes/<name>.css is a theme: drop a file in, it is available."""
+    return sorted(p.stem for p in THEMES.glob("*.css"))
 
 # Facts a human may correct. Anything else on the row is derived or measured.
 EDITABLE_TEXT = {"title", "caption", "transcript_roman", "source_title", "description"}
-EDITABLE_LISTS = {"folk_names", "people", "reactions", "use_when", "hashtags"}
+EDITABLE_LISTS = {"folk_names", "people", "reactions", "use_when", "topics", "hashtags"}
 
 
 @asynccontextmanager
@@ -45,29 +53,46 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="memeclip", lifespan=lifespan)
 config.ensure_dirs()
 app.mount("/media", StaticFiles(directory=str(config.MEDIA_DIR)), name="media")
+app.include_router(share_mod.router)
+app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
 
 
-def _public(row: dict) -> dict:
+def _public(row: dict, request: Request | None = None) -> dict:
     out = dict(row)
+    if out.get("share_id"):
+        out["share_url"] = share_mod.share_url(share_mod.public_base(request), out["share_id"])
     out["url"] = f"/media/{out.pop('file')}"
     out["thumb"] = f"/media/{out['thumb']}" if out.get("thumb") else None
-    for key in ("kw", "sem", "score"):
+    for key in ("kw", "sem", "tm", "score"):
         if out.get(key) is not None:
             out[key] = round(float(out[key]), 3)
     return out
 
 
-@app.get("/")
-def index() -> FileResponse:
-    return FileResponse(STATIC / "index.html")
+@app.get("/", response_class=HTMLResponse)
+def index(theme: str | None = None) -> HTMLResponse:
+    names = theme_names()
+    chosen = next((t for t in (theme, config.UI_THEME, "sticker") if t in names), names[0])
+    css = [STATIC / "base.css", THEMES / f"{chosen}.css", STATIC / "index.html"]
+    version = str(int(max(f.stat().st_mtime for f in css)))   # new file -> new URL, no stale CSS
+    page = (STATIC / "index.html").read_text(encoding="utf-8")
+    page = page.replace("__THEME__", chosen).replace("__VERSION__", version)
+    # no-cache: browsers re-check the page on every visit, so an update shows at once
+    return HTMLResponse(page, headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/themes")
+def themes() -> dict:
+    return {"active": config.UI_THEME, "themes": theme_names()}
 
 
 @app.get("/search")
-def search(q: str = "", limit: int = 24) -> dict:
+def search(request: Request, q: str = "", limit: int = 24) -> dict:
     limit = max(1, min(limit, 100))
     with db.session() as conn:
         rows = search_mod.search(conn, q, limit)
-    return {"query": q, "count": len(rows), "results": [_public(r) for r in rows]}
+    return {"query": q, "intent": laya.query_intent(q) if q.strip() else {},  # cached: no second call
+            "count": len(rows), "results": [_public(r, request) for r in rows]}
 
 
 class ShareBody(BaseModel):
@@ -83,20 +108,20 @@ def share(clip_id: int, body: ShareBody) -> dict:
 
 
 @app.get("/clips/{clip_id}")
-def get_clip(clip_id: int) -> dict:
+def get_clip(clip_id: int, request: Request) -> dict:
     with db.session() as conn:
         row = conn.execute(
-            """SELECT id, file, thumb, duration, width, height, has_audio, language,
+            """SELECT id, left(sha256, 10) AS share_id, file, thumb, duration, width, height, has_audio, language,
                       transcript_native, transcript_roman, title, caption, hashtags, comments,
                       source_urls, folk_names, people, source_title, description, reactions,
-                      use_when, learned_queries, s_names, s_said, s_people, s_meta, s_learned,
+                      use_when, topics, learned_queries, s_names, s_said, s_people, s_meta, s_learned,
                       duplicates_seen, shares, first_seen, needs_review, review_reasons, raw
                  FROM clips WHERE id = %s""",
             (clip_id,),
         ).fetchone()
     if row is None:
         raise HTTPException(404, "no such clip")
-    return _public(row)
+    return _public(row, request)
 
 
 class ClipPatch(BaseModel):
@@ -109,12 +134,13 @@ class ClipPatch(BaseModel):
     people: list[str] | None = None
     reactions: list[str] | None = None
     use_when: list[str] | None = None
+    topics: list[str] | None = None
     hashtags: list[str] | None = None
     reviewed: bool | None = None   # true clears the needs-review flag
 
 
 @app.patch("/clips/{clip_id}")
-def patch_clip(clip_id: int, patch: ClipPatch) -> dict:
+def patch_clip(clip_id: int, patch: ClipPatch, request: Request) -> dict:
     changes = patch.model_dump(exclude_none=True)
     reviewed = changes.pop("reviewed", None)
     updates: dict = {}
@@ -135,18 +161,18 @@ def patch_clip(clip_id: int, patch: ClipPatch) -> dict:
         if not done:
             raise HTTPException(404, "no such clip")
         indexing.refresh(conn, clip_id)
-    return get_clip(clip_id)
+    return get_clip(clip_id, request)
 
 
 @app.get("/review")
-def review(limit: int = 50) -> dict:
+def review(request: Request, limit: int = 50) -> dict:
     with db.session() as conn:
         rows = conn.execute(
             f"""SELECT {search_mod.COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS score
                   FROM clips WHERE needs_review ORDER BY first_seen DESC LIMIT %s""",
             (max(1, min(limit, 200)),),
         ).fetchall()
-    return {"count": len(rows), "results": [_public(r) for r in rows]}
+    return {"count": len(rows), "results": [_public(r, request) for r in rows]}
 
 
 @app.get("/queries/failed")

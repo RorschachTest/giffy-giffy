@@ -11,7 +11,7 @@ Which fact feeds which column is the single most important tuning decision:
   s_said    what is said                   <- transcript
   s_people  who / where it is from         <- people + their aliases + film or show
   s_meta    everything else                <- caption, hashtags, description,
-                                              reactions, use-when, top comments
+                                              reactions, use-when, topics, top comments
   s_learned real queries that led to a share
 """
 from __future__ import annotations
@@ -33,6 +33,7 @@ def search_fields(clip: dict, aliases: list[str]) -> dict:
     said = clip["transcript_roman"]
     people = [*clip["people"], *aliases, clip["source_title"]]
     meta = [caption, *tags, clip["description"], *clip["reactions"], *clip["use_when"],
+            *clip["topics"],
             *clip["comments"][:MAX_COMMENTS_INDEXED]]
 
     f = {
@@ -61,6 +62,7 @@ def embedding_text(clip: dict) -> str:
         f"From: {clip['source_title']}" if clip["source_title"] else "",
         f"Mood: {', '.join(clip['reactions'])}" if clip["reactions"] else "",
         f"Use when: {'; '.join(clip['use_when'])}" if clip["use_when"] else "",
+        f"About: {', '.join(clip['topics'])}" if clip["topics"] else "",
         caption,
     ]
     return ". ".join(p for p in parts if p)

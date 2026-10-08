@@ -1,91 +1,68 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="__THEME__">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#000000">
 <title>memeclip</title>
-<style>
-  :root {
-    --bg: #f6f4ef; --card: #ffffff; --ink: #1c1b19; --muted: #6d6a63;
-    --line: #dedad0; --accent: #d9480f; --accent-ink: #ffffff; --chip: #efece4;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #151412; --card: #1f1e1b; --ink: #f1eee7; --muted: #a09c93;
-            --line: #33312c; --accent: #ff7a45; --accent-ink: #1c1b19; --chip: #2a2824; }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink);
-         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  header { position: sticky; top: 0; z-index: 2; background: var(--bg);
-           border-bottom: 1px solid var(--line); padding: 12px 16px; }
-  .bar { max-width: 1100px; margin: 0 auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .brand { font-weight: 700; letter-spacing: -.02em; margin-right: 4px; }
-  input, textarea, button, select { font: inherit; color: inherit; }
-  input[type=search], input[type=text], textarea {
-    background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; width: 100%; }
-  #q { flex: 1 1 260px; font-size: 16px; }
-  button { background: var(--card); border: 1px solid var(--line); border-radius: 8px;
-           padding: 8px 12px; cursor: pointer; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
-  button.on { border-color: var(--accent); color: var(--accent); }
-  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
-  #status { color: var(--muted); margin: 0 0 12px; min-height: 1.4em; }
-  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
-          display: flex; flex-direction: column; }
-  .card video { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #000; display: block; cursor: pointer; }
-  .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
-  .name { font-weight: 600; overflow-wrap: anywhere; }
-  .said { color: var(--muted); font-style: italic; overflow-wrap: anywhere; }
-  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
-  .chip { background: var(--chip); border-radius: 999px; padding: 1px 8px; font-size: 12.5px; }
-  .chip.warn { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
-  .score { font: 12px/1.3 ui-monospace, Menlo, Consolas, monospace; color: var(--muted); }
-  .actions { display: flex; gap: 6px; margin-top: auto; padding-top: 4px; }
-  .actions button { flex: 1; padding: 6px 8px; }
-  dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink);
-           width: min(560px, calc(100vw - 32px)); padding: 18px; }
-  dialog::backdrop { background: rgba(0,0,0,.45); }
-  dialog h2 { margin: 0 0 12px; font-size: 18px; }
-  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 3px; }
-  .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
-  table { border-collapse: collapse; width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
-  td, th { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); }
-  .hint { color: var(--muted); font-size: 13px; }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- The design is a theme: app/static/themes/<name>.css. The server fills in
+     the name (UI_THEME in app/config.py or .env; ?theme=<name> to preview). -->
+<link rel="stylesheet" href="/static/base.css?v=__VERSION__">
+<link rel="stylesheet" href="/static/themes/__THEME__.css?v=__VERSION__" id="theme-css">
 </head>
 <body>
-<header>
-  <div class="bar">
-    <span class="brand">memeclip</span>
-    <input id="q" type="search" placeholder="what is said, who is in it, what happens…" autofocus>
-    <button id="tab-search" class="on">Search</button>
-    <button id="tab-review">Needs review</button>
-    <button id="tab-failed">Not found</button>
-    <button id="open-upload" class="primary">Add clip</button>
-  </div>
-</header>
+<div class="stage">
+<div class="island-wrap">
+  <nav class="island" aria-label="memeclip">
+    <span class="wordmark" translate="no">memeclip</span>
+    <button id="curate" class="cta ghost" type="button" aria-pressed="false">Curate</button>
+    <button id="open-upload" class="cta light" type="button"><span class="lbl">Add clip</span><span class="knob"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span></button>
+  </nav>
+</div>
 
 <main>
-  <p id="status"></p>
+  <section class="hero">
+    <span class="eyebrow">Meme search · Hindi &amp; English</span>
+    <h1>Say it with a <mark>clip</mark>.<span class="tag">no typing needed</span></h1>
+    <p class="lede">Search a line you half remember, who's in it, or the mood. Copy the link and the group chat sees the clip.</p>
+    <div class="search">
+      <div class="shell"><div class="core">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <label for="q" class="sr">Search memes</label>
+        <input id="q" type="search" placeholder="Try “salary day” or a line from the clip…" autocomplete="off" spellcheck="false" enterkeyhint="search">
+      </div></div>
+    </div>
+    <div class="tabs" role="group" aria-label="Library views">
+      <button class="tab" id="tab-search" type="button" aria-pressed="true">Library</button>
+      <button class="tab" id="tab-review" type="button" aria-pressed="false">Needs review</button>
+      <button class="tab" id="tab-failed" type="button" aria-pressed="false">Not found</button>
+    </div>
+    <div class="quick" id="quick" aria-label="Quick searches"></div>
+    <p id="status" role="status" aria-live="polite"></p>
+  </section>
   <div id="grid" class="grid"></div>
   <div id="table"></div>
 </main>
+</div>
 
 <dialog id="upload">
   <form id="upload-form">
     <h2>Add a clip</h2>
-    <input type="file" name="file" accept="video/*" required>
-    <label>Title, as the source wrote it</label><input type="text" name="title">
-    <label>Caption</label><input type="text" name="caption">
-    <label>Language code (hi, en, ta …). Leave empty to auto-detect</label><input type="text" name="language">
-    <label>What people call this meme (comma separated)</label><input type="text" name="folk_names">
-    <label>People in it (comma separated)</label><input type="text" name="people">
-    <label>Film or show</label><input type="text" name="source_title">
+    <label for="u-file">Video file</label><input id="u-file" type="file" name="file" accept="video/*" required>
+    <label for="u-title">Title, as the source wrote it</label><input id="u-title" type="text" autocomplete="off" name="title">
+    <label for="u-caption">Caption</label><input id="u-caption" type="text" autocomplete="off" name="caption">
+    <label for="u-lang">Language code (hi, en, ta …). Leave empty to auto-detect</label><input id="u-lang" type="text" autocomplete="off" name="language" spellcheck="false">
+    <label for="u-folk">What people call this meme (comma separated)</label><input id="u-folk" type="text" autocomplete="off" name="folk_names">
+    <label for="u-people">People in it (comma separated)</label><input id="u-people" type="text" autocomplete="off" name="people">
+    <label for="u-film">Film or show</label><input id="u-film" type="text" autocomplete="off" name="source_title">
     <p class="hint">The clip is queued. It shows up in search once the worker has processed it.</p>
-    <div class="row">
-      <button type="button" data-close>Cancel</button>
-      <button class="primary">Upload</button>
+    <p class="hint" id="upload-error" role="alert"></p>
+    <div class="actions-row">
+      <button type="button" class="cta ghost" data-close>Cancel</button>
+      <button class="cta light" id="upload-submit">Upload</button>
     </div>
   </form>
 </dialog>
@@ -93,17 +70,19 @@
 <dialog id="edit">
   <form id="edit-form">
     <h2>Edit clip</h2>
-    <label>What people call this meme (comma separated)</label><input type="text" name="folk_names">
-    <label>What is said (Roman script)</label><textarea name="transcript_roman" rows="2"></textarea>
-    <label>People (comma separated)</label><input type="text" name="people">
-    <label>Film or show</label><input type="text" name="source_title">
-    <label>What happens on screen</label><textarea name="description" rows="2"></textarea>
-    <label>Reactions (comma separated)</label><input type="text" name="reactions">
-    <label>Use when (comma separated)</label><input type="text" name="use_when">
-    <label><input type="checkbox" name="reviewed"> Mark as reviewed</label>
-    <div class="row">
-      <button type="button" data-close>Cancel</button>
-      <button class="primary">Save</button>
+    <label for="e-folk">What people call this meme (comma separated)</label><input id="e-folk" type="text" autocomplete="off" name="folk_names">
+    <label for="e-said">What is said (Roman script)</label><textarea id="e-said" name="transcript_roman" rows="2"></textarea>
+    <label for="e-people">People (comma separated)</label><input id="e-people" type="text" autocomplete="off" name="people">
+    <label for="e-film">Film or show</label><input id="e-film" type="text" autocomplete="off" name="source_title">
+    <label for="e-desc">What happens on screen</label><textarea id="e-desc" name="description" rows="2"></textarea>
+    <label for="e-react">Reactions (comma separated)</label><input id="e-react" type="text" autocomplete="off" name="reactions">
+    <label for="e-use">Use when (comma separated)</label><input id="e-use" type="text" autocomplete="off" name="use_when">
+    <label for="e-topics">Topics (comma separated)</label><input id="e-topics" type="text" autocomplete="off" name="topics">
+    <label><input type="checkbox" name="reviewed">Mark as reviewed</label>
+    <p class="hint" id="edit-error" role="alert"></p>
+    <div class="actions-row">
+      <button type="button" class="cta ghost" data-close>Cancel</button>
+      <button class="cta light" id="edit-submit">Save</button>
     </div>
   </form>
 </dialog>
@@ -116,7 +95,49 @@ const el = (tag, cls, text) => {
   if (text != null) n.textContent = text;   // textContent, never innerHTML: clip text is untrusted
   return n;
 };
-const LISTS = ["folk_names", "people", "reactions", "use_when"];
+
+// Fixed icon markup only (no clip data ever goes through innerHTML).
+const ICONS = {
+  link: '<path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11.5 4.43"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.33-1.33"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  download: '<path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  volume: '<path d="M11 5 6 9H3v6h3l5 4Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>',
+  mute: '<path d="M11 5 6 9H3v6h3l5 4Z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/>',
+};
+function icon(name) {
+  const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  s.setAttribute("class", "i"); s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("aria-hidden", "true");
+  s.innerHTML = ICONS[name];
+  return s;
+}
+function button(cls, label, iconName, { text = true } = {}) {
+  // Pill with the icon nested in its own circle ("button in button").
+  const b = el("button", "cta " + cls);
+  b.type = "button";
+  const t = el("span", text ? "lbl" : "sr", label);
+  const knob = el("span", "knob"); knob.append(icon(iconName));
+  b.append(t, knob);
+  if (!text) { b.classList.add("round"); b.setAttribute("aria-label", label); }
+  return b;
+}
+function setLabel(b, text) {
+  b.querySelector(".lbl, .sr").textContent = text;
+  if (b.hasAttribute("aria-label")) b.setAttribute("aria-label", text);
+}
+
+const LISTS = ["folk_names", "people", "reactions", "use_when", "topics"];
+const QUICK = ["shocked", "late", "money", "confused", "angry", "happy", "speech"];
+// Every mood's colour comes from the theme: --mood-<name> and --mood-<name>-on
+// (text on it), with --mood-default / --mood-on-default for anything unlisted.
+const QUICK_MOOD = { late: "in a hurry", speech: "preachy" };   // quick word -> mood it stands for
+function paintMood(node, mood) {
+  const slug = mood.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  node.style.setProperty("--mood", `var(--mood-${slug}, var(--mood-default))`);
+  node.style.setProperty("--mood-on", `var(--mood-${slug}-on, var(--mood-on-default))`);
+}
+const themeVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
 let mode = "search", lastQuery = "", editing = null, timer = null;
 
 async function api(path, options) {
@@ -125,63 +146,321 @@ async function api(path, options) {
   return res.json();
 }
 
-function card(c) {
-  const node = el("div", "card");
+// A web page cannot put a video file on the clipboard: browsers only accept text,
+// HTML and PNG there. So a clip offers the closest real equivalents:
+//   Send          the .mp4 file itself, through the system share sheet (Web Share)
+//   drag          drop the .mp4 file into Finder, a folder or a chat (Chrome / Edge)
+//   Download      save the .mp4 (curate view)
+//   Copy link     the short share link (/c/<id>); chat apps unfurl it as the video
+// Each one counts as a share, so the query that found the clip is learned.
+function fileName(c) {
+  const base = (c.folk_names[0] || c.title || `clip-${c.id}`).toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || `clip-${c.id}`;
+  return `${base}.mp4`;
+}
+
+const fileCache = new Map();   // clip id -> Promise<File>
+function clipFile(c) {
+  if (!fileCache.has(c.id)) {
+    fileCache.set(c.id, fetch(c.url).then((r) => {
+      if (!r.ok) throw new Error(r.statusText);
+      return r.blob();
+    }).then((b) => new File([b], fileName(c), { type: "video/mp4" }))
+      .catch((e) => { fileCache.delete(c.id); throw e; }));
+  }
+  return fileCache.get(c.id);
+}
+
+const canSendFiles = !!(navigator.canShare &&
+  navigator.canShare({ files: [new File([new Blob()], "x.mp4", { type: "video/mp4" })] }));
+
+function recordShare(c) {
+  return api(`/clips/${c.id}/share`, { method: "POST", headers: { "Content-Type": "application/json" },
+                                       body: JSON.stringify({ q: mode === "search" ? lastQuery : null }) })
+    .catch(() => {});
+}
+
+function flash(b, text, back) {
+  setLabel(b, text);
+  b.classList.add("done");
+  setTimeout(() => { setLabel(b, back); b.classList.remove("done"); }, 1600);
+}
+
+// Hover to play: a clip plays (muted) while the pointer is over it and stops when
+// it leaves. Only one clip plays at a time. Click toggles sound. Touch screens have
+// no hover, so a tap plays or stops instead. Keyboard focus plays too. With reduced
+// motion nothing plays on its own: click or Enter plays.
+let playing = null;
+
+function playOnly(frame) {
+  if (playing && playing !== frame) stopClip(playing);
+  playing = frame;
+  frame.classList.add("live");
+  frame._video.play().catch(() => {});   // muted autoplay is always allowed
+}
+
+function stopClip(frame) {
+  const v = frame._video;
+  v.pause();
+  v.currentTime = 0;
+  v.muted = true;
+  frame._sound(false);
+  frame.classList.remove("live");
+  frame._time.style.transform = "scaleX(0)";
+  if (playing === frame) playing = null;
+}
+
+function card(c, i) {
+  const node = el("article", "card" + (i === 0 ? " feature" : ""));
+  const shell = el("div", "shell"), core = el("div", "core");
+  shell.append(core); node.append(shell);
+
+  const frame = el("div", "frame");
+  frame.tabIndex = 0;
+  frame.setAttribute("role", "button");
+  frame.setAttribute("aria-label", `Play ${c.folk_names[0] || c.title || "clip"}`);
   const video = el("video");
   video.src = c.url; video.poster = c.thumb || ""; video.preload = "none"; video.loop = true; video.playsInline = true;
-  video.onclick = () => (video.paused ? video.play() : video.pause());
-  node.append(video);
+  video.muted = true;
+  const sub = el("div", "sub", c.transcript_roman ? c.transcript_roman.slice(0, 120) : "");
+  const snd = el("div", "snd"); snd.append(icon("mute"));
+  const time = el("div", "bar-time");
+  frame.append(video, sub, snd, time);
+  const mood = (c.reactions || [])[0];
+  if (mood) {
+    paintMood(node, mood);
+    frame.append(el("div", "stick", mood));
+  }
+  const topic = (c.topics || [])[0];
+  if (topic) frame.append(el("div", "badge", "#" + topic));
+  frame._video = video; frame._time = time;
+  frame._sound = (on) => { snd.replaceChildren(icon(on ? "volume" : "mute")); };
 
-  const body = el("div", "body");
-  body.append(el("div", "name", c.folk_names[0] || c.title || "(untitled)"));
-  if (c.transcript_roman) body.append(el("div", "said", "“" + c.transcript_roman + "”"));
+  video.ontimeupdate = () => { if (video.duration) time.style.transform = `scaleX(${video.currentTime / video.duration})`; };
+  frame.onpointerenter = (e) => { if (e.pointerType === "mouse" && !reduceMotion.matches) playOnly(frame); };
+  frame.onpointerleave = (e) => { if (e.pointerType === "mouse") stopClip(frame); };
+  frame.onfocus = () => { if (frame.matches(":focus-visible") && !reduceMotion.matches) playOnly(frame); };
+  frame.onblur = () => stopClip(frame);
+  const toggle = (touch) => {
+    if (touch || reduceMotion.matches) {                       // tap, or reduced motion: play or stop
+      if (frame.classList.contains("live")) stopClip(frame); else playOnly(frame);
+    } else {                                                  // mouse: already playing, toggle sound
+      video.muted = !video.muted;
+      frame._sound(!video.muted);
+      if (video.paused) playOnly(frame);
+    }
+  };
+  frame.onclick = (e) => toggle(!!e.pointerType && e.pointerType !== "mouse");
+  frame.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(true); } };
 
-  const chips = el("div", "chips");
-  for (const p of c.people) chips.append(el("span", "chip", p));
-  if (c.source_title) chips.append(el("span", "chip", c.source_title));
+  // Dragging the video out drops the .mp4 file (Chrome / Edge read DownloadURL).
+  video.draggable = true;
+  video.ondragstart = (e) => {
+    const abs = new URL(c.url, location.href).href;
+    e.dataTransfer.setData("DownloadURL", `video/mp4:${fileName(c)}:${abs}`);
+    e.dataTransfer.setData("text/uri-list", c.share_url || abs);
+    e.dataTransfer.setData("text/plain", c.share_url || abs);
+    e.dataTransfer.effectAllowed = "copy";
+    recordShare(c);
+  };
+  core.append(frame);
+
+  const row = el("div", "row");
+  const titles = el("div", "titles");
+  titles.append(el("div", "name", c.folk_names[0] || c.title || "(untitled)"));
+  const by = [...c.people, c.source_title].filter(Boolean).join(" · ");
+  if (by) titles.append(el("div", "by", by));
+  row.append(titles);
+
+  const acts = el("div", "acts");
+  const copy = button("", "Copy link", "link");
+  copy.setAttribute("aria-label", "Copy link");   // the label is hidden on small posters
+  copy.title = "Copy link";
+  copy.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(c.share_url || new URL(c.url, location.href).href);
+      recordShare(c);
+      flash(copy, "Copied", "Copy link");
+    } catch { flash(copy, "Copy failed", "Copy link"); }
+  };
+  acts.append(copy);
+
+  if (canSendFiles) {
+    const send = button("iconly", "Send video", "send", { text: false });
+    // Fetch the file before the click lands: some browsers (Safari) only allow the
+    // share sheet while the click is still "fresh", so there is no time to download then.
+    const warm = () => clipFile(c).catch(() => {});
+    send.onpointerenter = warm; send.onfocus = warm; send.ontouchstart = warm;
+    send.onclick = async () => {
+      try {
+        const file = await clipFile(c);
+        await navigator.share({ files: [file], title: c.folk_names[0] || c.title || "meme" });
+        recordShare(c);
+        flash(send, "Sent", "Send video");
+      } catch (e) {
+        if (e.name === "AbortError") return;                 // closed the share sheet
+        flash(send, e.name === "NotAllowedError" ? "Tap again to send" : "Could not send", "Send video");
+      }
+    };
+    acts.append(send);
+  }
+  row.append(acts);
+  core.append(row);
+
+  // ---- curation only ----
+  const chips = el("div", "curate-only chips");
+  for (const r of c.reactions || []) chips.append(el("span", "chip", r));
+  for (const t of c.topics || []) chips.append(el("span", "chip", "#" + t));
   for (const r of c.review_reasons) chips.append(el("span", "chip warn", r.replaceAll("_", " ")));
-  if (chips.children.length) body.append(chips);
+  if (chips.children.length) core.append(chips);
 
   const signals = `shared ${c.shares} · seen ${c.duplicates_seen}×`;
-  body.append(el("div", "score", c.score == null ? signals
-    : `score ${c.score} · keyword ${c.kw} · meaning ${c.sem} · ${signals}`));
+  core.append(Object.assign(el("div", "curate-only metric", c.score == null ? signals
+    : `score ${c.score} · keyword ${c.kw} · meaning ${c.sem} · topic ${c.tm} · ${signals}`), {}));
 
-  const actions = el("div", "actions");
-  const share = el("button", "", "Share");
-  share.onclick = async () => {
-    await api(`/clips/${c.id}/share`, { method: "POST", headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ q: mode === "search" ? lastQuery : null }) });
-    try { await navigator.clipboard.writeText(location.origin + c.url); } catch {}
-    share.textContent = "Link copied";
-    setTimeout(() => (share.textContent = "Share"), 1500);
-  };
-  const edit = el("button", "", "Edit");
+  const tools = el("div", "curate-only tools");
+  const download = button("", "Download", "download");
+  download.onclick = async () => { recordShare(c); const a = el("a"); a.href = c.url; a.download = fileName(c); a.click(); };
+  const edit = button("", "Edit", "edit");
   edit.onclick = () => openEdit(c.id);
-  actions.append(share, edit);
-  body.append(actions);
-  node.append(body);
+  tools.append(download, edit);
+  core.append(tools);
   return node;
 }
 
-function showCards(results, message) {
+// ---- scenes: a clip playing on a real surface (billboard, shirt, newspaper ...) ----
+// The theme switches this on (--scenes: on) and picks the order (--scene-order,
+// --scene-feature). Each scene in /static/scenes/scenes.json gives a photo and the
+// surface's four corners; the video is warped onto them with a perspective matrix.
+const VIDEO_W = 640, VIDEO_H = 360;           // the video's untransformed box
+let scenesReady = null;
+function loadScenes() {
+  if (themeVar("--scenes") !== "on") return Promise.resolve(null);
+  return scenesReady ||= fetch("/static/scenes/scenes.json").then((r) => r.json()).catch(() => null);
+}
+// 4-point perspective (homography) -> CSS matrix3d
+const adj = (m) => [m[4]*m[8]-m[5]*m[7], m[2]*m[7]-m[1]*m[8], m[1]*m[5]-m[2]*m[4], m[5]*m[6]-m[3]*m[8],
+                    m[0]*m[8]-m[2]*m[6], m[2]*m[3]-m[0]*m[5], m[3]*m[7]-m[4]*m[6], m[1]*m[6]-m[0]*m[7], m[0]*m[4]-m[1]*m[3]];
+const mulMM = (a, b) => { const c = []; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++)
+  c[3*i+j] = a[3*i]*b[j] + a[3*i+1]*b[3+j] + a[3*i+2]*b[6+j]; return c; };
+const mulMV = (m, v) => [m[0]*v[0]+m[1]*v[1]+m[2]*v[2], m[3]*v[0]+m[4]*v[1]+m[5]*v[2], m[6]*v[0]+m[7]*v[1]+m[8]*v[2]];
+function basis(p) {   // p = [[x,y] x4]: maps the unit basis onto three points, scaled by the fourth
+  const m = [p[0][0], p[1][0], p[2][0], p[0][1], p[1][1], p[2][1], 1, 1, 1];
+  const v = mulMV(adj(m), [p[3][0], p[3][1], 1]);
+  return mulMM(m, [v[0], 0, 0, 0, v[1], 0, 0, 0, v[2]]);
+}
+function matrix3d(from, to) {
+  const t = mulMM(basis(to), adj(basis(from)));
+  for (let i = 0; i < 9; i++) t[i] /= t[8];
+  return `matrix3d(${[t[0], t[3], 0, t[6], t[1], t[4], 0, t[7], 0, 0, 1, 0, t[2], t[5], 0, t[8]].join(",")})`;
+}
+function placeOnScene(frame, scene) {
+  const w = frame.clientWidth, h = frame.clientHeight;
+  if (!w || !h) return;
+  // Cover the frame, then zoom in on the surface so the clip spans a good share of
+  // the tile (more on small tiles), keeping the photo edge-to-edge.
+  const xs = scene.quad.map((q) => q[0]), ys = scene.quad.map((q) => q[1]);
+  const qw = Math.max(...xs) - Math.min(...xs);
+  const cx = (Math.max(...xs) + Math.min(...xs)) / 2, cy = (Math.max(...ys) + Math.min(...ys)) / 2;
+  const span = w < 520 ? .74 : .6;                              // share of the tile width the surface takes
+  const s = Math.max(w / scene.w, h / scene.h, span * w / (qw * scene.w));
+  const dw = scene.w * s, dh = scene.h * s;
+  const ox = Math.min(0, Math.max(w - dw, w / 2 - cx * dw));
+  const oy = Math.min(0, Math.max(h - dh, h / 2 - cy * dh));
+  for (const img of [frame._bg, frame._shade]) if (img)
+    Object.assign(img.style, { left: ox + "px", top: oy + "px", width: dw + "px", height: dh + "px" });
+  const [tl, tr, br, bl] = scene.quad.map(([x, y]) => [ox + x * dw, oy + y * dh]);
+  const box = [[0, 0], [VIDEO_W, 0], [0, VIDEO_H], [VIDEO_W, VIDEO_H]];
+  frame._video.style.transform = matrix3d(box, [tl, tr, bl, br]);
+  if (frame._shade) frame._shade.style.clipPath = `polygon(${[tl, tr, br, bl].map(([x, y]) => `${x}px ${y}px`).join(",")})`;
+}
+const sceneObserver = ("ResizeObserver" in window)
+  ? new ResizeObserver((entries) => { for (const e of entries) if (e.target._scene) placeOnScene(e.target, e.target._scene); })
+  : null;
+async function dressScenes(cards, results) {
+  const scenes = await loadScenes();
+  if (!scenes) return;
+  const order = themeVar("--scene-order").split(/\s+/).filter((n) => scenes[n]);
+  const feature = themeVar("--scene-feature");
+  cards.forEach((node, i) => {
+    const c = results[i];
+    const name = (i === 0 && scenes[feature]) ? feature : order[c.id % order.length];
+    const scene = scenes[name];
+    if (!scene) return;
+    const frame = node.querySelector(".frame");
+    frame.classList.add("scene", "scene-" + name);
+    frame._scene = scene;
+    const bg = el("img", "scene-bg"); bg.src = scene.image; bg.alt = ""; bg.decoding = "async"; bg.loading = "lazy";
+    frame.prepend(bg); frame._bg = bg;
+    Object.assign(frame._video.style, { width: VIDEO_W + "px", height: VIDEO_H + "px" });
+    if (scene.shade) {
+      const shade = el("img", "scene-shade"); shade.src = scene.shade; shade.alt = ""; shade.loading = "lazy";
+      frame._video.after(shade); frame._shade = shade;
+    }
+    placeOnScene(frame, scene);
+    sceneObserver?.observe(frame);
+  });
+}
+
+// Clips fade up as they enter the viewport. Only added when IntersectionObserver
+// exists and motion is welcome, so without it everything is simply visible.
+const revealer = ("IntersectionObserver" in window) ? new IntersectionObserver((entries) => {
+  for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); revealer.unobserve(e.target); }
+}, { rootMargin: "0px 0px -8% 0px" }) : null;
+function reveal(nodes) {
+  if (!revealer || reduceMotion.matches || themeVar("--reveal") !== "on") return;
+  // The fade-up runs on the inner shell, so the poster's tilt (on the card) is kept.
+  nodes.forEach((n, i) => {
+    const target = n.querySelector(".shell") || n;
+    target.classList.add("reveal"); target.style.transitionDelay = `${(i % 4) * 70}ms`; revealer.observe(target);
+  });
+}
+
+function showCards(results, status, emptyTitle, emptyHelp) {
+  playing = null;
   $("table").replaceChildren();
-  $("grid").replaceChildren(...results.map(card));
-  $("status").textContent = message;
+  if (!results.length) {
+    const e = el("div", "empty");
+    e.append(el("strong", "", emptyTitle), el("span", "", emptyHelp));
+    $("grid").replaceChildren(e);
+  } else {
+    const cards = results.map((c, i) => card(c, i));
+    $("grid").replaceChildren(...cards);
+    reveal(cards);
+    dressScenes(cards, results);
+  }
+  $("status").replaceChildren(...status);
+}
+
+function intentText(intent) {
+  const parts = Object.entries(intent || {}).map(([k, p]) => (document.body.classList.contains("curate") ? `${k} ${p}` : k));
+  return parts.length ? parts.join(", ") : "";
 }
 
 async function runSearch() {
   lastQuery = $("q").value.trim();
+  for (const b of $("quick").children) b.setAttribute("aria-pressed", String(b.textContent === lastQuery));
   try {
     const data = await api(`/search?q=${encodeURIComponent(lastQuery)}`);
-    showCards(data.results, lastQuery
-      ? `${data.count} result${data.count === 1 ? "" : "s"} for “${lastQuery}”`
-      : (data.count ? "Trending" : "No clips yet. Add one, or drop files into data/inbox."));
-  } catch (e) { $("status").textContent = "Search failed: " + e.message; }
+    const status = [];
+    if (!lastQuery) {
+      status.push(el("span", "", data.count ? "Trending now" : ""));
+    } else {
+      status.push(el("span", "", `${data.count} clip${data.count === 1 ? "" : "s"} · `));
+      const read = intentText(data.intent);
+      status.push(read ? Object.assign(el("span", "read", `reading it as ${read}`)) : el("span", "dim", "matched on the words"));
+    }
+    showCards(data.results, status,
+      lastQuery ? `Nothing for “${lastQuery}” yet` : "No clips yet",
+      lastQuery ? "Try other words, a line from the clip, or a mood like shocked or late."
+                : "Add a clip, or drop video files into data/inbox.");
+  } catch (e) { $("status").textContent = `Search failed: ${e.message}. Check that memeclip is running, then search again.`; }
 }
 
 async function runReview() {
   const data = await api("/review");
-  showCards(data.results, `${data.count} clip${data.count === 1 ? "" : "s"} the pipeline was unsure about`);
+  showCards(data.results, [el("span", "", `${data.count} clip${data.count === 1 ? "" : "s"} the pipeline was unsure about`)],
+            "Nothing to review", "Every clip passed its checks.");
 }
 
 async function runFailed() {
@@ -189,7 +468,7 @@ async function runFailed() {
   $("grid").replaceChildren();
   $("status").textContent = "Searches that found nothing. Each one is a missing clip or a missing way to find one.";
   const table = el("table");
-  const head = el("tr"); head.append(el("th", "", "Query"), el("th", "", "Times"));
+  const head = el("tr"); head.append(el("th", "", "Search"), el("th", "", "Times"));
   table.append(head);
   for (const q of data.queries) {
     const tr = el("tr"); tr.append(el("td", "", q.query), el("td", "", q.times)); table.append(tr);
@@ -199,8 +478,16 @@ async function runFailed() {
 
 function setMode(next) {
   mode = next;
-  for (const m of ["search", "review", "failed"]) $("tab-" + m).classList.toggle("on", m === mode);
+  for (const m of ["search", "review", "failed"]) $("tab-" + m).setAttribute("aria-pressed", String(m === mode));
   ({ search: runSearch, review: runReview, failed: runFailed })[mode]();
+}
+
+function setCurate(on) {
+  document.body.classList.toggle("curate", on);
+  $("curate").setAttribute("aria-pressed", String(on));
+  if (!on && mode !== "search") mode = "search";
+  history.replaceState(null, "", on ? "#curate" : location.pathname + location.search);
+  setMode(mode);
 }
 
 async function openEdit(id) {
@@ -219,25 +506,55 @@ $("edit-form").onsubmit = async (e) => {
   for (const k of LISTS) body[k] = f[k].value.split(",").map((s) => s.trim()).filter(Boolean);
   for (const k of ["transcript_roman", "source_title", "description"]) body[k] = f[k].value;
   if (f.reviewed.checked) body.reviewed = true;
-  await api(`/clips/${editing}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  $("edit").close();
-  setMode(mode);
+  const submit = $("edit-submit");
+  submit.disabled = true; submit.textContent = "Saving…"; $("edit-error").textContent = "";
+  try {
+    await api(`/clips/${editing}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    $("edit").close();
+    setMode(mode);
+  } catch (err) {
+    $("edit-error").textContent = `Not saved: ${err.message}. Your changes are still here; try Save again.`;
+  } finally { submit.disabled = false; submit.textContent = "Save"; }
 };
 
 $("upload-form").onsubmit = async (e) => {
   e.preventDefault();
+  const submit = $("upload-submit");
+  submit.disabled = true; submit.textContent = "Uploading…"; $("upload-error").textContent = "";
   try {
     const out = await api("/upload", { method: "POST", body: new FormData(e.target) });
-    $("status").textContent = `Queued ${out.queued_as}. Search again in a few seconds.`;
+    $("status").textContent = `Queued ${out.queued_as}. It shows up in search in a few seconds.`;
     e.target.reset();
     $("upload").close();
-  } catch (err) { $("status").textContent = "Upload failed: " + err.message; $("upload").close(); }
+  } catch (err) {
+    $("upload-error").textContent = `Upload failed: ${err.message}. Check the file is a video under 30 seconds, then try again.`;
+  } finally { submit.disabled = false; submit.textContent = "Upload"; }
 };
 
+for (const word of QUICK) {
+  const b = el("button", "pill", word);
+  paintMood(b, QUICK_MOOD[word] || word);
+  b.type = "button";
+  b.setAttribute("aria-pressed", "false");
+  b.onclick = () => { $("q").value = lastQuery === word ? "" : word; setMode("search"); };
+  $("quick").append(b);
+}
+
 $("open-upload").onclick = () => $("upload").showModal();
+$("curate").onclick = () => setCurate(!document.body.classList.contains("curate"));
 for (const b of document.querySelectorAll("[data-close]")) b.onclick = () => b.closest("dialog").close();
 for (const m of ["search", "review", "failed"]) $("tab-" + m).onclick = () => setMode(m);
-$("q").oninput = () => { clearTimeout(timer); timer = setTimeout(() => setMode("search"), 400); };
+$("q").oninput = () => { clearTimeout(timer); timer = setTimeout(() => setMode("search"), 350); };
+// #curate in the address opens the curation view (also when only the # part changes)
+const curateFromHash = () => {
+  const on = location.hash === "#curate";
+  if (on !== document.body.classList.contains("curate")) setCurate(on);
+};
+addEventListener("hashchange", curateFromHash);
+if (location.hash === "#curate") { document.body.classList.add("curate"); $("curate").setAttribute("aria-pressed", "true"); }
+if (matchMedia("(pointer: fine)").matches) $("q").focus();
+const themeColor = themeVar("--theme-color");
+if (themeColor) document.querySelector('meta[name="theme-color"]').setAttribute("content", themeColor);
 setMode("search");
 </script>
 </body>

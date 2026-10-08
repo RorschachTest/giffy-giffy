@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>memeclip</title>
+<link rel="stylesheet" href="picker.css">
+</head>
+<body>
+  <div class="panel">
+    <div class="top">
+      <input id="q" type="search" placeholder="What's the meme? e.g. salary day" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="status" class="status" role="status">Loading…</div>
+    <div id="grid" class="grid" role="listbox" aria-label="Clips"></div>
+    <div class="foot">
+      <span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> choose · <kbd>Enter</kbd> paste link · <kbd>Esc</kbd> close</span>
+      <a id="settings" href="options.html" target="_blank">Settings</a>
+    </div>
+  </div>
+  <script src="picker.js"></script>
+</body>
+</html>

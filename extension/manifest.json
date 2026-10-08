@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "memeclip",
+  "version": "0.1.0",
+  "description": "Search meme clips and paste a link that chat apps show as the video.",
+  "action": {
+    "default_title": "memeclip: find a meme (Alt+Shift+K)",
+    "default_popup": "picker.html"
+  },
+  "options_page": "options.html",
+  "background": { "service_worker": "background.js" },
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["http://localhost:8000/*"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+Shift+K" },
+      "description": "Open the memeclip search popup"
+    },
+    "open-picker": {
+      "suggested_key": { "default": "Alt+Shift+M" },
+      "description": "Open the picker over the box you are typing in"
+    }
+  },
+  "web_accessible_resources": [
+    { "resources": ["picker.html", "picker.js", "picker.css"], "matches": ["<all_urls>"] }
+  ]
+}

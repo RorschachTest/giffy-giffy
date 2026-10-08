@@ -23,6 +23,25 @@ If the image fails to build on the face-recognition step, skip that part for
 now: set `WITH_FACES=0` and `ENABLE_FACES=0` in `.env` and build again.
 Everything else works without it.
 
+To build, start and check everything in one go (the output is also saved to
+`data/smoke_test.log`):
+
+```bash
+bash scripts/smoke_test.sh
+```
+
+It waits for the clips in `data/inbox/` to be processed, then prints what was
+heard, who was recognised and what was flagged for each clip. If
+`data/smoke_queries.txt` exists, it also runs those searches and reports
+pass or fail. One search per line:
+
+```
+kya karu main => kya karu mein
+```
+
+The left side is what you would type; the right side is words from the title
+of the clip you expect on top.
+
 ## Add clips
 
 Either use **Add clip** on the page, or copy files into `data/inbox/`.
@@ -93,7 +112,8 @@ Every clip showing that face inherits the name.
 | The meme's street name     | `kokilaben meme`            | `s_names`  | folk names, cleaned title                    |
 | Half-remembered dialogue   | `rasode me kon tha`         | `s_said`   | speech to text, romanised                    |
 | Person or source           | `nana patekar`, `chintu`    | `s_people` | faces, names in captions, aliases, film/show |
-| What happens, when to use  | `mom caught me`             | `s_meta` + embedding | description, reactions, use-when, caption, comments |
+| What happens, when to use  | `mom caught me`             | `s_meta` + embedding | description, reactions, use-when, topics, caption, comments |
+| What it is about / the mood | `when boss shouts at me`   | `tm` (topics, reactions) | Laya reads the query's topic and mood |
 | A query that worked before | anything                    | `s_learned`| queries that ended in a share                |
 
 Text goes through one `normalise()` function (`app/text.py`) at indexing time
@@ -109,6 +129,47 @@ from them in `app/indexing.py`. After changing a rule:
 docker compose exec worker python -m app.reindex
 ```
 
+## Mood and topics
+
+Every clip gets three kinds of derived metadata, all from local models. The
+sidecar or the Edit button always wins over them.
+
+| Field | From |
+|---|---|
+| `reactions` (mood) | facial expressions (FER+), keyframes vs mood sentences (CLIP), and the title + dialogue read by Laya (`app/vibe.py`) |
+| `use_when`, `description` | a fixed table and a template per mood |
+| `topics` | [Laya](https://github.com/NandhaKishorM/laya): a choice over `app/laya.py` `TOPICS`, on the title alone and on title + dialogue; kept when either is confident |
+
+Laya is a decision model, not a chat model: it answers typed questions
+(choice, score, yes/no) about text with a probability per option and never
+generates text. It runs as the `laya` service; its sandbox and API docs are at
+http://localhost:8001/docs. At search time it reads what the query is about
+(`/search` returns this as `intent`), and clips whose topics or reactions match
+score `tm`. With Laya off or down, ingest flags `laya_failed` and search works
+as before.
+
+To add Laya topics and redo the mood on clips indexed before it existed:
+
+```bash
+docker compose exec worker python -m app.reindex --laya --vibe --replace
+```
+
+`--replace` overwrites hand-edited mood fields too; leave it off to fill only
+empty ones.
+
+## Share links and the browser extension
+
+Every clip has a short link, `/c/<first 10 hex of its SHA-256>`
+(`app/share.py`). The page behind it plays the clip and carries the tags chat
+apps read to draw a preview: `og:video`, a `twitter:player` card and oEmbed.
+**Copy link** on the test page copies it, and so does the browser extension in
+[`extension/`](extension/README.md), which pastes it straight into WhatsApp Web,
+Slack or Discord with **Alt+Shift+M**.
+
+Chat apps fetch previews from the internet, so set `PUBLIC_BASE_URL` to the
+server's public https address; with `localhost` the link works but no app can
+preview it.
+
 ## Layout
 
 ```
@@ -117,11 +178,16 @@ app/media.py      ffmpeg: probe, keyframes, audio, web copy, picture hash
 app/stt.py        speech to text (faster-whisper)
 app/faces.py      face gallery, matching, unknown-face grouping (InsightFace)
 app/embed.py      text embeddings (fastembed, multilingual MiniLM)
+app/vibe.py       mood: facial expressions, CLIP scene, dialogue tone
+app/laya.py       Laya client: clip topics + text mood, search intent
+app/share.py      share links /c/<id>: video page, preview tags, oEmbed
+extension/        browser extension: search and paste share links
 app/pipeline.py   the per-clip assembly line, duplicates, review flags
 app/indexing.py   facts -> searchable columns
 app/search.py     hybrid ranking, share feedback
 app/worker.py     watches data/inbox
 app/api.py        HTTP API + test page
+app/smoke.py      report + test searches used by scripts/smoke_test.sh
 app/schema.sql    tables (Postgres + pgvector + pg_trgm)
 ```
 
@@ -139,13 +205,41 @@ the plumbing and the ranking logic, not model quality.
 
 ## Not built yet
 
-- Describing what happens on screen automatically (a vision model step). For
-  now `description`, `reactions` and `use_when` come from the sidecar or the
-  Edit button.
+- A real description of what happens on screen. `description` is only a
+  template built from the mood signals.
 - Reading on-screen text (OCR) and recognising songs or sound effects.
 - Audio fingerprints for duplicates. Picture hashes catch re-encodes and
   resizes, not crops or heavy watermarks.
 - Automatic collection from sources, moderation, accounts.
+
+## Public access (Cloudflare Tunnel)
+
+The app is published at `https://memeclip.aiwroteit.dev` through a Cloudflare
+Tunnel: an outgoing connection from this machine to Cloudflare, so no router
+ports are open and HTTPS is Cloudflare's. `cloudflared` runs as a macOS system
+service, separate from Docker, and starts at boot.
+
+1. Cloudflare dashboard, **Zero Trust > Networks > Tunnels**: create a tunnel
+   and copy its connector token.
+2. Install the service (the token is stored in a root-only file):
+
+   ```bash
+   brew install cloudflared
+   sudo cloudflared service install <TOKEN>
+   ```
+
+3. In the tunnel, **Public Hostname**: `memeclip` . `aiwroteit.dev`, service
+   **HTTP**, URL `localhost:8000` (the service runs on the host, so it reaches
+   the api container through its published port).
+4. In `.env`: `PUBLIC_BASE_URL=https://memeclip.aiwroteit.dev`, then
+   `docker compose up -d api worker`.
+5. **Zero Trust > Access > Applications**: one self-hosted app for
+   `memeclip.aiwroteit.dev` allowing only your email, and one for the paths
+   `c/*`, `media/*`, `oembed` with a Bypass policy, so share links and chat
+   previews stay public while upload and edit need a login.
+
+Logs: `/Library/Logs/com.cloudflare.cloudflared.err.log`. To rotate the token:
+`sudo cloudflared service uninstall`, then install again with the new one.
 
 ## Running it somewhere other than your laptop
 

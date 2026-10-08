@@ -6,12 +6,23 @@ x-app: &app
       WITH_FACES: ${WITH_FACES:-1}
   environment:
     DATABASE_URL: postgresql://memeclip:memeclip@db:5432/memeclip
+    PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+    UI_THEME: ${UI_THEME:-}
     DATA_DIR: /data
     MODELS_DIR: /models
     # Values come from .env when it exists (see .env.example); otherwise the defaults here.
     WHISPER_MODEL: ${WHISPER_MODEL:-small}
     DEFAULT_LANGUAGE: ${DEFAULT_LANGUAGE:-}
     ENABLE_FACES: ${ENABLE_FACES:-1}
+    ENABLE_VIBE: ${ENABLE_VIBE:-1}
+    VIBE_MIN_SCORE: ${VIBE_MIN_SCORE:-0.30}
+    # Laya: topics + text mood at ingest, query intent at search. LAYA_URL= (empty) turns it off.
+    LAYA_URL: ${LAYA_URL-http://laya:8000}
+    LAYA_MODEL: ${LAYA_MODEL:-multilingual}
+    LAYA_TOPIC_MIN: ${LAYA_TOPIC_MIN:-0.45}
+    LAYA_QUERY_MIN: ${LAYA_QUERY_MIN:-0.3}
+    W_TOPIC: ${W_TOPIC:-0.25}
+    MIN_TOPIC: ${MIN_TOPIC:-0.5}
     FACE_MATCH_THRESHOLD: ${FACE_MATCH_THRESHOLD:-0.42}
     W_KEYWORD: ${W_KEYWORD:-0.65}
     W_SEMANTIC: ${W_SEMANTIC:-0.35}
@@ -50,7 +61,51 @@ services:
   worker:
     <<: *app
     command: ["python", "-m", "app.worker"]
+    # Laya is optional (empty LAYA_URL turns it off, and a down Laya only flags a
+    # clip `laya_failed`), so the worker must start without it. `required: false`
+    # still starts Laya first and waits for it when it can; if Laya never becomes
+    # healthy (no network, bad build) the worker runs anyway. Clips ingested
+    # before Laya is ready can be filled later: python -m app.reindex --laya
+    depends_on:
+      db:
+        condition: service_healthy
+      laya:
+        condition: service_healthy
+        required: false
+
+  # Laya decision model (https://github.com/NandhaKishorM/laya), built from its
+  # release tag because there is no published image. CPU only. The first start
+  # downloads the multilingual checkpoint (~1.3 GB) into the laya-cache volume.
+  # Sandbox: http://localhost:8001/docs (bound to this machine only; no auth).
+  laya:
+    build:
+      context: https://github.com/NandhaKishorM/laya.git#v0.3.28
+      args:
+        TORCH_INDEX: cpu
+    command: ["laya-serve"]
+    environment:
+      LAYA_HOST: 0.0.0.0
+      LAYA_PORT: "8000"
+      LAYA_DEVICE: cpu
+      LAYA_MODELS: multilingual
+      LAYA_DEFAULT_MODEL: multilingual
+      LAYA_PRELOAD: "1"
+      LAYA_THREADS: ${LAYA_THREADS:-4}
+      LAYA_LOG_LEVEL: warning
+    ports:
+      - "127.0.0.1:8001:8000"
+    volumes:
+      - laya-cache:/home/laya/.cache/huggingface
+    init: true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15m
 
 volumes:
   pgdata:
   models:
+  laya-cache:

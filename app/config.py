@@ -9,6 +9,15 @@ def _bool(name: str, default: bool) -> bool:
     return os.getenv(name, "1" if default else "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+# The public https address people reach this server on (https://clips.example.com).
+# Share links and their video previews use it; chat apps cannot unfurl localhost.
+# Empty = the address each request came in on (fine for local testing).
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
+
+# The page design: the name of a file in app/static/themes/ (picker, sticker, viza, ...).
+# Change it here, or set UI_THEME in .env. /?theme=<name> previews any theme.
+UI_THEME = os.getenv("UI_THEME") or "sticker"
+
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://memeclip:memeclip@db:5432/memeclip")
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
@@ -36,6 +45,26 @@ EMBED_BACKEND = os.getenv("EMBED_BACKEND", "fastembed")   # fastembed | hash (te
 EMBED_MODEL = os.getenv("EMBED_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 EMBED_DIM = int(os.getenv("EMBED_DIM", "384"))
 
+# Emotional context (mood / use-when / description), all local models, no LLM:
+# facial expressions (FER+), scene mood (CLIP zero-shot), dialogue tone (text embedder)
+ENABLE_VIBE = _bool("ENABLE_VIBE", True)
+VIBE_CLIP_IMAGE = os.getenv("VIBE_CLIP_IMAGE", "Qdrant/clip-ViT-B-32-vision")
+VIBE_CLIP_TEXT = os.getenv("VIBE_CLIP_TEXT", "Qdrant/clip-ViT-B-32-text")
+FER_URL = os.getenv("FER_URL", "https://github.com/onnx/models/raw/main/validated/vision/"
+                    "body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx")
+VIBE_MIN_SCORE = float(os.getenv("VIBE_MIN_SCORE", "0.30"))   # combined score to keep a mood
+
+# Laya (typed decisions over text, no text generation): topics + mood at ingest,
+# query intent at search. Empty LAYA_URL switches it off.
+LAYA_URL = os.getenv("LAYA_URL", "")
+LAYA_API_KEY = os.getenv("LAYA_API_KEY", "")
+LAYA_MODEL = os.getenv("LAYA_MODEL", "multilingual")       # Hindi + English; "" = let Laya route
+LAYA_TIMEOUT = float(os.getenv("LAYA_TIMEOUT", "60"))      # ingest; the first call loads the model
+LAYA_SEARCH_TIMEOUT = float(os.getenv("LAYA_SEARCH_TIMEOUT", "3"))
+LAYA_TOPIC_MIN = float(os.getenv("LAYA_TOPIC_MIN", "0.45"))  # probability to keep a topic on a clip
+LAYA_MAX_TOPICS = int(os.getenv("LAYA_MAX_TOPICS", "5"))
+LAYA_QUERY_MIN = float(os.getenv("LAYA_QUERY_MIN", "0.3"))  # probability to treat a query as about X
+
 # Faces
 ENABLE_FACES = _bool("ENABLE_FACES", True)
 FACE_MODEL = os.getenv("FACE_MODEL", "buffalo_l")
@@ -56,6 +85,9 @@ W_POPULARITY = float(os.getenv("W_POPULARITY", "0.03"))
 # just letter-overlap noise. Starting values: tune them against your own test queries.
 MIN_KEYWORD = float(os.getenv("MIN_KEYWORD", "0.35"))
 MIN_SEMANTIC = float(os.getenv("MIN_SEMANTIC", "0.45"))
+# Topic / mood match between the query (Laya) and the clip's topics + reactions.
+W_TOPIC = float(os.getenv("W_TOPIC", "0.25"))
+MIN_TOPIC = float(os.getenv("MIN_TOPIC", "0.5"))
 
 
 def ensure_dirs() -> None:

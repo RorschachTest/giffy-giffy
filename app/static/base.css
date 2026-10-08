@@ -1,0 +1,108 @@
+/* Shared mechanics for every theme: structure, behaviour, accessibility.
+   Nothing here decides how the page looks: colours, type, radii, spacing of
+   the look and motion all live in themes/<name>.css. See themes/README.md for
+   the classes and variables a theme styles. */
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; background: var(--bg, #000); }
+body { margin: 0; min-height: 100dvh; background: var(--bg, #000); color: var(--text, #fff);
+       font-family: var(--font, system-ui, sans-serif); -webkit-font-smoothing: antialiased;
+       padding-bottom: env(safe-area-inset-bottom); }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.frame, .pill { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: var(--icon-stroke, 1.5);
+        stroke-linecap: round; stroke-linejoin: round; flex: none; }
+:focus-visible { outline: 2px solid var(--focus, #ffd54a); outline-offset: 3px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.stage { position: relative; z-index: 2; }
+
+/* nav */
+.island { display: flex; align-items: center; gap: 8px; }
+.wordmark { white-space: nowrap; }
+
+/* buttons: label + knob (the knob holds the icon) */
+.cta { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px;
+       text-decoration: none; white-space: nowrap; border: 0; }
+.cta .knob { display: grid; place-items: center; flex: none; }
+.cta.round { min-width: 44px; }
+
+/* hero: search, curate views, quick searches, status */
+.hero { display: grid; }
+.hero h1 { margin: 0; text-wrap: balance; }
+.hero p { margin: 0; text-wrap: pretty; }
+.search { position: relative; }
+.search .core { display: flex; align-items: center; }
+.search svg { position: absolute; pointer-events: none; }
+#q { width: 100%; border: 0; outline: none; background: transparent; }
+.tabs { display: none; }
+body.curate .tabs { display: inline-flex; }
+.tab { border: 0; background: none; min-height: 40px; }
+.quick { display: flex; overflow-x: auto; scrollbar-width: none; }
+.quick::-webkit-scrollbar { display: none; }
+.pill { flex: none; min-height: 40px; }
+#status { margin: 0; min-height: 1.5em; }
+
+/* grid of clips */
+.grid { display: grid; grid-auto-flow: dense; }
+.card { min-width: 0; }
+.card .core { display: flex; flex-direction: column; height: 100%; }
+.frame { position: relative; overflow: hidden; cursor: pointer; isolation: isolate; aspect-ratio: 4 / 3; background: #000; }
+.frame video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+.sub { position: absolute; left: 14px; right: 14px; bottom: 16px; z-index: 1; text-align: center; pointer-events: none;
+       opacity: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.frame.live .sub { opacity: 1; }
+.snd { position: absolute; top: 10px; right: 10px; z-index: 1; width: 34px; height: 34px; display: grid; place-items: center;
+       pointer-events: none; opacity: 0; }
+.frame.live .snd { opacity: 1; }
+.bar-time { position: absolute; left: 0; bottom: 0; width: 100%; height: 3px; z-index: 1;
+            transform-origin: left; transform: scaleX(0); opacity: 0; }
+.frame.live .bar-time { opacity: 1; }
+.stick, .badge { position: absolute; z-index: 2; pointer-events: none; }
+
+/* scenes (themes switch on with --scenes: on): the clip plays on a real surface
+   in a photo. The script sizes the video and warps it onto the surface's four
+   corners with a perspective matrix; see app/static/scenes/scenes.json. */
+.frame.scene { background: var(--scene-bg, #160422); }
+.frame.scene .scene-bg, .frame.scene .scene-shade { position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+                                                    max-width: none; object-fit: fill; pointer-events: none; }
+.frame.scene .scene-bg { z-index: 0; }
+.frame.scene video { inset: auto; left: 0; top: 0; transform-origin: 0 0; object-fit: cover; z-index: 1;
+                     transition: none !important; backface-visibility: hidden; }
+.frame.scene .scene-shade { z-index: 1; mix-blend-mode: multiply; opacity: var(--scene-shade-opacity, .9); }
+.row { display: flex; align-items: center; gap: 10px; }
+.titles { flex: 1; min-width: 0; }
+.name { overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.by { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acts { display: flex; gap: 6px; flex: none; }
+
+/* curation only */
+.curate-only { display: none; }
+body.curate .curate-only { display: flex; }
+.chips { flex-wrap: wrap; gap: 4px; }
+.metric { font-variant-numeric: tabular-nums; }
+.tools { flex-wrap: wrap; gap: 6px; }
+
+/* entrance: the script adds .reveal only when the theme sets --reveal: on and motion is welcome */
+.reveal { opacity: 0; transform: translateY(var(--reveal-y, 32px)); filter: blur(var(--reveal-blur, 0));
+          transition: opacity var(--reveal-dur, .6s) var(--reveal-ease, ease-out),
+                      transform var(--reveal-dur, .6s) var(--reveal-ease, ease-out),
+                      filter var(--reveal-dur, .6s) var(--reveal-ease, ease-out); }
+.reveal.in { opacity: 1; transform: none; filter: none; }
+
+.empty { grid-column: 1 / -1; text-align: center; }
+.empty strong { display: block; }
+
+/* tables and dialogs */
+table { width: 100%; border-collapse: separate; border-spacing: 0; overflow: hidden; }
+td, th { text-align: left; }
+dialog { width: min(580px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; overscroll-behavior: contain; }
+label { display: block; }
+input[type=text], textarea, input[type=file] { width: 100%; outline: none; }
+.actions-row { display: flex; gap: 8px; justify-content: flex-end; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
+  .reveal { opacity: 1; transform: none; filter: none; }
+  .card, .card:hover, .card:focus-within, .stick, .card:hover .stick, .frame:not(.scene) video { transform: none !important; }
+}
