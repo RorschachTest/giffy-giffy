@@ -14,6 +14,10 @@ def _bool(name: str, default: bool) -> bool:
 # Empty = the address each request came in on (fine for local testing).
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
 
+# The page design: the name of a file in app/static/themes/ (picker, sticker, viza, ...).
+# Change it here, or set UI_THEME in .env. /?theme=<name> previews any theme.
+UI_THEME = os.getenv("UI_THEME") or "viza"
+
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://memeclip:memeclip@db:5432/memeclip")
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))

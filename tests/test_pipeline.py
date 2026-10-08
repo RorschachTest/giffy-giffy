@@ -340,3 +340,25 @@ def test_17_share_links_unfurl_as_video(monkeypatch):
         monkeypatch.setattr(config, "PUBLIC_BASE_URL", "https://clips.example.com/")
         assert client.get(f"/clips/{hit['id']}").json()["share_url"] == f"https://clips.example.com/c/{share_id}"
         assert 'content="https://clips.example.com/media/' in client.get(f"/c/{share_id}").text
+
+
+def test_18_themes_are_plug_and_play(monkeypatch):
+    """The page loads the theme named in config; ?theme= previews another; an
+    unknown name falls back; every file in static/themes is a theme."""
+    from fastapi.testclient import TestClient
+
+    from app import api
+
+    names = api.theme_names()
+    assert {"picker", "sticker", "viza"} <= set(names)
+    with TestClient(api.app) as client:
+        monkeypatch.setattr(config, "UI_THEME", "picker")
+        page = client.get("/").text
+        assert 'data-theme="picker"' in page and "/static/themes/picker.css?v=" in page and "__THEME__" not in page
+        assert "/static/themes/viza.css" in client.get("/", params={"theme": "viza"}).text
+        assert "/static/themes/picker.css" in client.get("/", params={"theme": "../etc/passwd"}).text
+        assert client.get("/themes").json() == {"active": "picker", "themes": names}
+        for name in names:
+            assert client.get(f"/static/themes/{name}.css").status_code == 200
+        assert client.get("/static/base.css").status_code == 200
+        assert client.get("/static/scenes/scenes.json").json()["billboard"]["quad"]

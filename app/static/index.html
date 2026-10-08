@@ -1,245 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="__THEME__">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#050505">
+<meta name="theme-color" content="#000000">
 <title>memeclip</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Geist:wght@300;400;500;600;700&family=Pixelify+Sans:wght@500&display=swap">
-<style>
-  /* Sticker wall (Gen Z pass, after the Dribbble "scroll-stopping banner" collage):
-     clips are tilted posters with their mood as a chunky coloured sticker; every
-     mood owns one saturated colour, used for its sticker and its quick search.
-     Built on the high-end-visual-design trial below. */
-  /* high-end-visual-design trial: "Ethereal Glass" texture + "Asymmetrical Bento" layout.
-     OLED black with two soft glows (subtitle gold, deep emerald), glass only on
-     fixed layers (nav, dialogs), every clip in a double bezel: an outer tray and
-     an inner core with concentric radii. The yellow of burned-in subtitles stays
-     the one accent: dialogue on a playing clip, what the search understood, focus. */
-  :root {
-    color-scheme: dark;
-    --void: #050505;
-    --tray: rgba(255, 255, 255, .035);      /* outer bezel */
-    --core: #0d0d0f;                        /* inner core */
-    --core-hi: #141417;
-    --hair: rgba(255, 255, 255, .09);
-    --hair-strong: rgba(255, 255, 255, .16);
-    --glass: rgba(18, 18, 21, .62);
-    --text: #f2f1ee;
-    --text-2: #b9b9c0;
-    --text-3: #8b8b95;                      /* 5.6:1 on --void */
-    --subtitle: #ffd54a;
-    --danger: #ff8a7a;
-    --font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-    --display: "Bricolage Grotesque", "Geist", ui-sans-serif, system-ui, sans-serif;
-    --pixel: "Pixelify Sans", ui-monospace, Menlo, monospace;
-    --cream: #f4ede4;                       /* the bright search pill */
-    --spring: cubic-bezier(.32, .72, 0, 1);
-    --r-shell: 28px; --pad-shell: 6px; --r-core: 22px; --pad-core: 8px; --r-media: 14px;
-  }
-  * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; background: var(--void); }
-  body { margin: 0; min-height: 100dvh; background: var(--void); color: var(--text); font: 400 15px/1.55 var(--font);
-         -webkit-font-smoothing: antialiased; padding-bottom: env(safe-area-inset-bottom); }
-  /* two soft glows and a whisper of grain, on fixed layers that never scroll */
-  body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
-    background: radial-gradient(42rem 30rem at 12% -6%, rgba(255, 196, 64, .13), transparent 70%),
-                radial-gradient(46rem 34rem at 96% 108%, rgba(24, 160, 128, .12), transparent 70%); }
-  body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: .035;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"); }
-  .stage { position: relative; z-index: 2; }
-  button, input, textarea { font: inherit; color: inherit; }
-  button { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-  .frame, .pill { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-  svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.25;
-          stroke-linecap: round; stroke-linejoin: round; flex: none; }
-  :focus-visible { outline: 2px solid var(--subtitle); outline-offset: 3px; }
-  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-
-  /* ---------- floating island nav (glass is fine here: it is sticky) ---------- */
-  .island-wrap { position: sticky; top: calc(14px + env(safe-area-inset-top)); z-index: 10; display: flex; justify-content: center;
-                 padding: 14px 16px 0; pointer-events: none; }
-  .island { pointer-events: auto; display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 18px;
-            border-radius: 999px; background: var(--glass); border: 1px solid var(--hair);
-            backdrop-filter: blur(24px) saturate(140%); -webkit-backdrop-filter: blur(24px) saturate(140%);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); max-width: calc(100vw - 32px); }
-  .wordmark { font-weight: 600; letter-spacing: -.03em; font-size: 16px; margin-right: 10px; }
-
-  /* pills, and the button-in-button trailing knob */
-  .cta { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 5px 5px 5px 18px;
-         border-radius: 999px; border: 1px solid var(--hair-strong); background: rgba(255, 255, 255, .03);
-         color: var(--text); text-decoration: none; white-space: nowrap; font-weight: 500;
-         transition: background-color .5s var(--spring), border-color .5s var(--spring), transform .4s var(--spring); }
-  .cta:hover { background: rgba(255, 255, 255, .07); border-color: rgba(255, 255, 255, .24); }
-  .cta:active { transform: scale(.98); }
-  .cta .knob { width: 34px; height: 34px; border-radius: 999px; display: grid; place-items: center;
-               background: rgba(255, 255, 255, .08); transition: transform .5s var(--spring), background-color .5s var(--spring); }
-  .cta:hover .knob { transform: translate(2px, -1px) scale(1.05); background: rgba(255, 255, 255, .14); }
-  .cta.light { background: var(--cream); color: #0a0a0a; border-color: var(--cream); }
-  .cta.light .knob { background: rgba(0, 0, 0, .08); }
-  .cta.light:hover { background: #fff; }
-  .cta.ghost { border-color: transparent; background: transparent; padding: 5px 14px; color: var(--text-2); }
-  .cta.ghost:hover { color: var(--text); background: rgba(255, 255, 255, .05); }
-  .cta.ghost[aria-pressed="true"] { color: var(--subtitle); }
-  .cta.round { padding: 5px; }
-  .cta.done { border-color: var(--subtitle); color: var(--subtitle); }
-
-  /* ---------- hero ---------- */
-  main { max-width: 1240px; margin: 0 auto; padding: 0 24px 96px; }
-  .hero { padding: 88px 0 40px; display: grid; gap: 22px; max-width: 760px; }
-  .eyebrow { font-family: var(--pixel); letter-spacing: .08em !important; justify-self: start; border-radius: 999px; padding: 5px 12px; font-size: 10.5px; font-weight: 500;
-             letter-spacing: .2em; text-transform: uppercase; color: var(--text-2); border: 1px solid var(--hair);
-             background: var(--tray); }
-  .hero h1 { margin: 0; font-family: var(--display); font-size: clamp(44px, 8vw, 92px); line-height: .9;
-             letter-spacing: -.04em; font-weight: 800; text-wrap: balance; }
-  .hero h1 .tag { display: inline-block; font-size: .32em; letter-spacing: -.01em; vertical-align: .9em; margin-left: .2em;
-                  padding: .18em .55em; border-radius: 999px; background: #ff5fa2; color: #160810; transform: rotate(6deg);
-                  font-weight: 700; }
-  .hero p.lede { margin: 0; color: var(--text-2); font-size: 17px; max-width: 52ch; text-wrap: pretty; }
-  /* the search sits in its own double bezel */
-  .shell { border-radius: var(--r-shell); padding: var(--pad-shell); background: var(--tray); border: 1px solid var(--hair); }
-  .core { border-radius: var(--r-core); background: var(--core); box-shadow: inset 0 1px 1px rgba(255, 255, 255, .08); }
-  .search { position: relative; }
-  .search .core { display: flex; align-items: center; background: var(--cream); color: #121212; border-radius: 999px; }
-  .search .shell { border-radius: 999px; }
-  .search svg { position: absolute; left: 22px; color: var(--text-3); pointer-events: none; width: 20px; height: 20px; }
-  #q { width: 100%; height: 64px; background: transparent; border: 0; border-radius: 999px; color: #121212; font-weight: 500;
-       padding: 0 22px 0 56px; font-size: 19px; letter-spacing: -.01em; outline: none; }
-  #q::placeholder { color: #6b6560; }
-  .search svg { color: #6b6560 !important; }
-  .search .shell { transition: border-color .5s var(--spring), background-color .5s var(--spring); }
-  .search .shell:focus-within { border-color: #ff5fa2; background: rgba(255, 95, 162, .12); }
-
-  .tabs { display: none; gap: 4px; padding: 4px; border-radius: 999px; background: var(--tray); border: 1px solid var(--hair);
-          justify-self: start; }
-  body.curate .tabs { display: inline-flex; }
-  .tab { background: none; border: 0; border-radius: 999px; color: var(--text-2); padding: 0 16px; min-height: 38px;
-         transition: background-color .4s var(--spring), color .4s var(--spring); }
-  .tab[aria-pressed="true"] { color: #0a0a0a; background: var(--text); }
-  .quick { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px; margin: -2px; }
-  .quick::-webkit-scrollbar { display: none; }
-  .pill { flex: none; min-height: 38px; padding: 0 16px; border-radius: 999px; background: var(--tray);
-          border: 1px solid var(--hair); color: var(--text-2);
-          transition: background-color .4s var(--spring), color .4s var(--spring), border-color .4s var(--spring); }
-  .pill { font-family: var(--display); font-weight: 700; letter-spacing: -.01em; }
-  .pill::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 999px; margin-right: 8px;
-                  background: var(--mood, var(--text-3)); vertical-align: 1px; }
-  .pill:hover { color: var(--text); border-color: var(--mood, var(--hair-strong)); }
-  .pill[aria-pressed="true"] { color: #111; background: var(--mood, var(--text)); border-color: var(--mood, var(--text)); }
-  .pill[aria-pressed="true"]::before { background: #111; }
-  #status { min-height: 24px; margin: 0; color: var(--text-3); font-size: 14px; }
-  #status .read { color: var(--subtitle); font-weight: 500; }
-
-  /* ---------- asymmetric bento of double-bezel clips ---------- */
-  .grid { display: grid; gap: 20px; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-flow: dense; margin-top: 8px; }
-  .card.feature { grid-column: span 2; grid-row: span 2; }
-  @media (max-width: 1023px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 767px) {   /* mobile collapse: one column, no spans */
-    main { padding: 0 16px 64px; } .hero { padding: 48px 0 28px; }
-    .grid { grid-template-columns: 1fr; gap: 16px; } .card.feature { grid-column: auto; grid-row: auto; }
-  }
-  .card { min-width: 0; transition: transform .7s var(--spring); }
-  @media (min-width: 768px) {
-    .card:nth-child(4n+1) { transform: rotate(-1.6deg); }
-    .card:nth-child(4n+2) { transform: rotate(1.2deg) translateY(10px); }
-    .card:nth-child(4n+3) { transform: rotate(-.8deg) translateY(-6px); }
-    .card:nth-child(4n)   { transform: rotate(1.8deg); }
-    .card.feature { transform: rotate(-1deg); }
-    .card:hover, .card:focus-within { transform: rotate(0) translateY(-4px) scale(1.01); z-index: 3; position: relative; }
-  }
-  .card .core { background: #101012; }
-  .stick { position: absolute; left: 12px; bottom: 12px; z-index: 2; pointer-events: none; max-width: calc(100% - 24px);
-           font-family: var(--display); font-weight: 800; font-size: clamp(18px, 2.2vw, 26px); line-height: .95;
-           letter-spacing: -.03em; text-transform: uppercase; color: #111; background: var(--mood, #f4ede4);
-           padding: .32em .5em .28em; border-radius: 10px; transform: rotate(-4deg); transform-origin: left bottom;
-           box-shadow: 0 0 0 2px #111, 3px 4px 0 0 #111; transition: transform .6s var(--spring), opacity .4s var(--spring); }
-  .card.feature .stick { font-size: clamp(26px, 3.6vw, 46px); left: 18px; bottom: 18px; }
-  .card:hover .stick { transform: rotate(-7deg) scale(1.04); }
-  .frame.live .stick { opacity: 0; }               /* make room for the subtitle while it plays */
-  .badge { position: absolute; top: 10px; left: 10px; z-index: 2; pointer-events: none; font-family: var(--pixel);
-           font-size: 12px; letter-spacing: .04em; padding: 3px 9px; border-radius: 999px; background: #f4ede4; color: #111;
-           transform: rotate(-2deg); }
-  .card > .shell { height: 100%; }
-  .card .core { padding: var(--pad-core); display: flex; flex-direction: column; gap: 12px; height: 100%; }
-  .frame { position: relative; aspect-ratio: 4 / 3; background: #000; border-radius: var(--r-media); overflow: hidden;
-           cursor: pointer; isolation: isolate; }
-  .card.feature .frame { aspect-ratio: auto; flex: 1; min-height: 300px; }
-  .frame video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block;
-                 transition: transform .9s var(--spring); }
-  .frame:hover video, .frame.live video { transform: scale(1.015); }
-  .frame::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-                  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
-  .sub { position: absolute; left: 14px; right: 14px; bottom: 18px; text-align: center; pointer-events: none; z-index: 1;
-         color: var(--subtitle); font-weight: 600; font-size: 15px; line-height: 1.3; opacity: 0; transform: translateY(6px);
-         transition: opacity .45s var(--spring), transform .45s var(--spring);
-         text-shadow: 0 0 3px #000, 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
-         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .card.feature .sub { font-size: 19px; bottom: 26px; }
-  .frame.live .sub { opacity: 1; transform: none; }
-  .snd { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 999px; z-index: 1;
-         display: grid; place-items: center; background: rgba(0, 0, 0, .55); color: var(--text);
-         opacity: 0; transition: opacity .4s var(--spring); pointer-events: none; }
-  .frame.live .snd { opacity: 1; }
-  .bar-time { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--subtitle); z-index: 1;
-              transform-origin: left; transform: scaleX(0); opacity: 0; }
-  .frame.live .bar-time { opacity: 1; }
-  .row { display: flex; align-items: center; gap: 10px; padding: 2px 4px 4px 8px; }
-  .titles { flex: 1; min-width: 0; }
-  .name { font-family: var(--display); font-weight: 700; font-size: 16px; line-height: 1.3; letter-spacing: -.01em; overflow: hidden; overflow-wrap: anywhere;
-          display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-wrap: pretty; }
-  .card.feature .name { font-size: 24px; letter-spacing: -.03em; }
-  .by { color: var(--text-3); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .acts { display: flex; gap: 6px; flex: none; }
-  /* small posters in the collage: the copy button is just its round knob, so names keep their room */
-  @media (min-width: 768px), (max-width: 380px) {
-    .card:not(.feature) .acts .cta .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-    .card:not(.feature) .acts .cta { padding: 5px; } }
-
-  /* curation only */
-  .curate-only { display: none; }
-  body.curate .curate-only { display: flex; }
-  .chips { flex-wrap: wrap; gap: 4px; padding: 0 8px; }
-  .chip { font-size: 12px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--hair-strong); color: var(--text-2); }
-  .chip.warn { border-color: var(--danger); color: var(--danger); }
-  .metric { font-size: 12px; color: var(--text-3); padding: 0 8px; font-variant-numeric: tabular-nums; }
-  .tools { gap: 6px; padding: 0 4px 4px; flex-wrap: wrap; }
-
-  /* entrance: a heavy fade-up as each clip enters the viewport (JS adds .reveal only when it can run) */
-  .reveal { opacity: 0; transform: translateY(48px); filter: blur(8px);
-            transition: opacity .75s var(--spring), transform .75s var(--spring), filter .75s var(--spring); }
-  .reveal.in { opacity: 1; transform: none; filter: none; }
-
-  .empty { grid-column: 1 / -1; padding: 80px 16px; text-align: center; color: var(--text-2); }
-  .empty strong { display: block; font-size: 24px; letter-spacing: -.02em; color: var(--text); margin-bottom: 8px; font-weight: 600; }
-
-  /* ---------- tables and dialogs ---------- */
-  table { border-collapse: separate; border-spacing: 0; width: 100%; background: var(--core); border: 1px solid var(--hair); border-radius: var(--r-core); overflow: hidden; }
-  td, th { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--hair); }
-  tr:last-child td { border-bottom: 0; }
-  th { color: var(--text-3); font-weight: 500; font-size: 13px; }
-  dialog { border: 1px solid var(--hair-strong); border-radius: 30px; background: rgba(14, 14, 16, .86); color: var(--text);
-           backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
-           width: min(580px, calc(100vw - 32px)); padding: 28px; max-height: calc(100dvh - 32px); overflow: auto;
-           overscroll-behavior: contain; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
-  dialog::backdrop { background: rgba(0, 0, 0, .72); }
-  dialog h2 { margin: 0 0 18px; font-size: 24px; letter-spacing: -.03em; font-weight: 600; }
-  label { display: block; font-size: 13.5px; color: var(--text-2); margin: 14px 0 6px; }
-  input[type=text], textarea, input[type=file] { width: 100%; background: var(--void); border: 1px solid var(--hair);
-         border-radius: 14px; padding: 11px 14px; outline: none; }
-  input[type=text]:focus, textarea:focus { border-color: rgba(255, 213, 74, .6); }
-  input[type=checkbox] { accent-color: var(--subtitle); margin-right: 8px; }
-  .actions-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 26px; }
-  .hint { color: var(--text-3); font-size: 13.5px; }
-
-  @media (prefers-reduced-motion: reduce) {
-    .reveal { opacity: 1; transform: none; filter: none; transition: none; }
-    .sub, .cta, .cta .knob, .pill, .tab, .frame video { transition: none; }
-    .frame:hover video, .frame.live video, .cta:hover .knob, .card, .card:hover, .stick, .card:hover .stick { transform: none; }
-  }
-</style>
+<!-- The design is a theme: app/static/themes/<name>.css. The server fills in
+     the name (UI_THEME in app/config.py or .env; ?theme=<name> to preview). -->
+<link rel="stylesheet" href="/static/base.css?v=__VERSION__">
+<link rel="stylesheet" href="/static/themes/__THEME__.css?v=__VERSION__" id="theme-css">
 </head>
 <body>
 <div class="stage">
@@ -254,7 +26,7 @@
 <main>
   <section class="hero">
     <span class="eyebrow">Meme search · Hindi &amp; English</span>
-    <h1>Say it with a clip.<span class="tag">no typing needed</span></h1>
+    <h1>Say it with a <mark>clip</mark>.<span class="tag">no typing needed</span></h1>
     <p class="lede">Search a line you half remember, who's in it, or the mood. Copy the link and the group chat sees the clip.</p>
     <div class="search">
       <div class="shell"><div class="core">
@@ -356,12 +128,15 @@ function setLabel(b, text) {
 
 const LISTS = ["folk_names", "people", "reactions", "use_when", "topics"];
 const QUICK = ["shocked", "late", "money", "confused", "angry", "happy", "speech"];
-// Every mood owns one saturated colour: its sticker on a clip and its quick search.
-const MOOD_COLOR = {
-  shocked: "#ffe14d", "in a hurry": "#ff8a1f", late: "#ff8a1f", happy: "#ff5fa2", laughing: "#ff5fa2",
-  angry: "#ff4d3d", confused: "#b69cff", helpless: "#6ec8ff", sad: "#6ec8ff", scared: "#3ee6c1",
-  preachy: "#a8d672", speech: "#a8d672", smug: "#ff9e7a", disgusted: "#c6e04a", dancing: "#7cf06a", money: "#c6f04a",
-};
+// Every mood's colour comes from the theme: --mood-<name> and --mood-<name>-on
+// (text on it), with --mood-default / --mood-on-default for anything unlisted.
+const QUICK_MOOD = { late: "in a hurry", speech: "preachy" };   // quick word -> mood it stands for
+function paintMood(node, mood) {
+  const slug = mood.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  node.style.setProperty("--mood", `var(--mood-${slug}, var(--mood-default))`);
+  node.style.setProperty("--mood-on", `var(--mood-${slug}-on, var(--mood-on-default))`);
+}
+const themeVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
 let mode = "search", lastQuery = "", editing = null, timer = null;
 
@@ -453,7 +228,7 @@ function card(c, i) {
   frame.append(video, sub, snd, time);
   const mood = (c.reactions || [])[0];
   if (mood) {
-    node.style.setProperty("--mood", MOOD_COLOR[mood] || "#f4ede4");
+    paintMood(node, mood);
     frame.append(el("div", "stick", mood));
   }
   const topic = (c.topics || [])[0];
@@ -553,13 +328,87 @@ function card(c, i) {
   return node;
 }
 
+// ---- scenes: a clip playing on a real surface (billboard, shirt, newspaper ...) ----
+// The theme switches this on (--scenes: on) and picks the order (--scene-order,
+// --scene-feature). Each scene in /static/scenes/scenes.json gives a photo and the
+// surface's four corners; the video is warped onto them with a perspective matrix.
+const VIDEO_W = 640, VIDEO_H = 360;           // the video's untransformed box
+let scenesReady = null;
+function loadScenes() {
+  if (themeVar("--scenes") !== "on") return Promise.resolve(null);
+  return scenesReady ||= fetch("/static/scenes/scenes.json").then((r) => r.json()).catch(() => null);
+}
+// 4-point perspective (homography) -> CSS matrix3d
+const adj = (m) => [m[4]*m[8]-m[5]*m[7], m[2]*m[7]-m[1]*m[8], m[1]*m[5]-m[2]*m[4], m[5]*m[6]-m[3]*m[8],
+                    m[0]*m[8]-m[2]*m[6], m[2]*m[3]-m[0]*m[5], m[3]*m[7]-m[4]*m[6], m[1]*m[6]-m[0]*m[7], m[0]*m[4]-m[1]*m[3]];
+const mulMM = (a, b) => { const c = []; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++)
+  c[3*i+j] = a[3*i]*b[j] + a[3*i+1]*b[3+j] + a[3*i+2]*b[6+j]; return c; };
+const mulMV = (m, v) => [m[0]*v[0]+m[1]*v[1]+m[2]*v[2], m[3]*v[0]+m[4]*v[1]+m[5]*v[2], m[6]*v[0]+m[7]*v[1]+m[8]*v[2]];
+function basis(p) {   // p = [[x,y] x4]: maps the unit basis onto three points, scaled by the fourth
+  const m = [p[0][0], p[1][0], p[2][0], p[0][1], p[1][1], p[2][1], 1, 1, 1];
+  const v = mulMV(adj(m), [p[3][0], p[3][1], 1]);
+  return mulMM(m, [v[0], 0, 0, 0, v[1], 0, 0, 0, v[2]]);
+}
+function matrix3d(from, to) {
+  const t = mulMM(basis(to), adj(basis(from)));
+  for (let i = 0; i < 9; i++) t[i] /= t[8];
+  return `matrix3d(${[t[0], t[3], 0, t[6], t[1], t[4], 0, t[7], 0, 0, 1, 0, t[2], t[5], 0, t[8]].join(",")})`;
+}
+function placeOnScene(frame, scene) {
+  const w = frame.clientWidth, h = frame.clientHeight;
+  if (!w || !h) return;
+  // Cover the frame, then zoom in on the surface so the clip spans a good share of
+  // the tile (more on small tiles), keeping the photo edge-to-edge.
+  const xs = scene.quad.map((q) => q[0]), ys = scene.quad.map((q) => q[1]);
+  const qw = Math.max(...xs) - Math.min(...xs);
+  const cx = (Math.max(...xs) + Math.min(...xs)) / 2, cy = (Math.max(...ys) + Math.min(...ys)) / 2;
+  const span = w < 520 ? .74 : .6;                              // share of the tile width the surface takes
+  const s = Math.max(w / scene.w, h / scene.h, span * w / (qw * scene.w));
+  const dw = scene.w * s, dh = scene.h * s;
+  const ox = Math.min(0, Math.max(w - dw, w / 2 - cx * dw));
+  const oy = Math.min(0, Math.max(h - dh, h / 2 - cy * dh));
+  for (const img of [frame._bg, frame._shade]) if (img)
+    Object.assign(img.style, { left: ox + "px", top: oy + "px", width: dw + "px", height: dh + "px" });
+  const [tl, tr, br, bl] = scene.quad.map(([x, y]) => [ox + x * dw, oy + y * dh]);
+  const box = [[0, 0], [VIDEO_W, 0], [0, VIDEO_H], [VIDEO_W, VIDEO_H]];
+  frame._video.style.transform = matrix3d(box, [tl, tr, bl, br]);
+  if (frame._shade) frame._shade.style.clipPath = `polygon(${[tl, tr, br, bl].map(([x, y]) => `${x}px ${y}px`).join(",")})`;
+}
+const sceneObserver = ("ResizeObserver" in window)
+  ? new ResizeObserver((entries) => { for (const e of entries) if (e.target._scene) placeOnScene(e.target, e.target._scene); })
+  : null;
+async function dressScenes(cards, results) {
+  const scenes = await loadScenes();
+  if (!scenes) return;
+  const order = themeVar("--scene-order").split(/\s+/).filter((n) => scenes[n]);
+  const feature = themeVar("--scene-feature");
+  cards.forEach((node, i) => {
+    const c = results[i];
+    const name = (i === 0 && scenes[feature]) ? feature : order[c.id % order.length];
+    const scene = scenes[name];
+    if (!scene) return;
+    const frame = node.querySelector(".frame");
+    frame.classList.add("scene", "scene-" + name);
+    frame._scene = scene;
+    const bg = el("img", "scene-bg"); bg.src = scene.image; bg.alt = ""; bg.decoding = "async"; bg.loading = "lazy";
+    frame.prepend(bg); frame._bg = bg;
+    Object.assign(frame._video.style, { width: VIDEO_W + "px", height: VIDEO_H + "px" });
+    if (scene.shade) {
+      const shade = el("img", "scene-shade"); shade.src = scene.shade; shade.alt = ""; shade.loading = "lazy";
+      frame._video.after(shade); frame._shade = shade;
+    }
+    placeOnScene(frame, scene);
+    sceneObserver?.observe(frame);
+  });
+}
+
 // Clips fade up as they enter the viewport. Only added when IntersectionObserver
 // exists and motion is welcome, so without it everything is simply visible.
 const revealer = ("IntersectionObserver" in window) ? new IntersectionObserver((entries) => {
   for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); revealer.unobserve(e.target); }
 }, { rootMargin: "0px 0px -8% 0px" }) : null;
 function reveal(nodes) {
-  if (!revealer || reduceMotion.matches) return;
+  if (!revealer || reduceMotion.matches || themeVar("--reveal") !== "on") return;
   // The fade-up runs on the inner shell, so the poster's tilt (on the card) is kept.
   nodes.forEach((n, i) => {
     const target = n.querySelector(".shell") || n;
@@ -578,6 +427,7 @@ function showCards(results, status, emptyTitle, emptyHelp) {
     const cards = results.map((c, i) => card(c, i));
     $("grid").replaceChildren(...cards);
     reveal(cards);
+    dressScenes(cards, results);
   }
   $("status").replaceChildren(...status);
 }
@@ -683,7 +533,7 @@ $("upload-form").onsubmit = async (e) => {
 
 for (const word of QUICK) {
   const b = el("button", "pill", word);
-  b.style.setProperty("--mood", MOOD_COLOR[word] || "#f4ede4");
+  paintMood(b, QUICK_MOOD[word] || word);
   b.type = "button";
   b.setAttribute("aria-pressed", "false");
   b.onclick = () => { $("q").value = lastQuery === word ? "" : word; setMode("search"); };
@@ -703,6 +553,8 @@ const curateFromHash = () => {
 addEventListener("hashchange", curateFromHash);
 if (location.hash === "#curate") { document.body.classList.add("curate"); $("curate").setAttribute("aria-pressed", "true"); }
 if (matchMedia("(pointer: fine)").matches) $("q").focus();
+const themeColor = themeVar("--theme-color");
+if (themeColor) document.querySelector('meta[name="theme-color"]').setAttribute("content", themeColor);
 setMode("search");
 </script>
 </body>

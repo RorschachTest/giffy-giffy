@@ -1,0 +1,11 @@
+{
+  "_about": "Real-world surfaces a clip can play on. quad = the surface's corners as fractions of the photo, in the order top-left, top-right, bottom-right, bottom-left. shade = an optional greyscale layer multiplied over the video (fabric folds). Photos are Unsplash (free licence), graded to one purple duotone; see CREDITS.md.",
+  "billboard": { "image": "/static/scenes/billboard.jpg", "w": 1400, "h": 934,
+                 "quad": [[0.197, 0.402], [0.822, 0.087], [0.864, 0.582], [0.162, 0.840]] },
+  "shirt":     { "image": "/static/scenes/shirt.jpg", "w": 1400, "h": 934, "shade": "/static/scenes/shirt-shade.jpg",
+                 "quad": [[0.402, 0.177], [0.668, 0.186], [0.662, 0.495], [0.408, 0.489]] },
+  "newspaper": { "image": "/static/scenes/newspaper.jpg", "w": 1400, "h": 934,
+                 "quad": [[0.264, 0.195], [0.728, 0.189], [0.724, 0.543], [0.268, 0.507]] },
+  "station":   { "image": "/static/scenes/station.jpg", "w": 1400, "h": 1050,
+                 "quad": [[0.287, 0.196], [0.593, 0.240], [0.590, 0.511], [0.309, 0.547]] }
+}
