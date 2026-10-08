@@ -70,6 +70,8 @@ LAYA_QUERY_MIN = float(os.getenv("LAYA_QUERY_MIN", "0.3"))  # probability to tre
 EXPLAIN_BACKEND = os.getenv("EXPLAIN_BACKEND", "off")
 EXPLAIN_FRAMES = int(os.getenv("EXPLAIN_FRAMES", "4"))
 EXPLAIN_TIMEOUT = float(os.getenv("EXPLAIN_TIMEOUT", "180"))
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+EXPLAIN_CLAUDE_MODEL = os.getenv("EXPLAIN_CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 
 # Faces
 ENABLE_FACES = _bool("ENABLE_FACES", True)
