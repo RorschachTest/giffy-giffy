@@ -16,7 +16,7 @@ pytestmark = pytest.mark.skipif(not os.getenv("TEST_DATABASE_URL"), reason="TEST
 from app import config, db, faces, indexing, pipeline, search  # noqa: E402
 
 WORK = Path(config.DATA_DIR) / "_fixtures"
-TABLES = "query_log, clip_faces, face_refs, people, clips"
+TABLES = "meme_feedback, query_log, clip_faces, face_refs, people, clips"
 
 
 def make_clip(name: str, source: str, seconds: float = 3, extra: list[str] | None = None) -> Path:

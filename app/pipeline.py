@@ -4,6 +4,7 @@
         -> probe -> exact-duplicate check -> keyframes -> near-duplicate check
         -> web-ready copy + thumbnail
         -> speech to text -> faces -> names found in captions -> topics + text mood (Laya) -> mood (local models)
+        -> picture vs words gap (CLIP, for the humor engine in understand.py)
         -> review flags -> searchable columns + embedding
 """
 from __future__ import annotations
@@ -16,8 +17,8 @@ from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
-from . import config, faces, indexing, laya, media, vibe
-from .text import has_devanagari, to_roman
+from . import config, faces, humor, indexing, laya, media, vibe
+from .text import clean_caption, has_devanagari, to_roman
 
 log = logging.getLogger("pipeline")
 
@@ -280,6 +281,15 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
                 except Exception:
                     log.exception("mood extraction failed for %s", video.name)
                     reasons.append("vibe_failed")
+
+            # --- picture vs words, for the humor engine (CLIP; English text only) --
+            if config.ENABLE_VIBE:
+                words = clean_caption(meta["caption"] or meta["title"])[0]
+                if words and not has_devanagari(words):
+                    try:
+                        raw["humor_visual"] = humor.visual_gap(frames, words)
+                    except Exception:   # optional signal: never fails the clip
+                        log.exception("picture/words gap failed for %s", video.name)
 
             if not (native or meta["title"] or meta["caption"] or meta["folk_names"]):
                 reasons.append("no_context")
