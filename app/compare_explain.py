@@ -57,6 +57,10 @@ def main() -> int:
     if not wanted:
         print("no explain backend is available on this branch", file=sys.stderr)
         return 1
+    for name in wanted:
+        ok, reason = explain.ready(name)
+        if not ok:
+            print(f"note: {name} is not ready: {reason}", file=sys.stderr)
     print(f"backends: {', '.join(wanted)}   clips: {len(rows)}\n")
 
     results = []
@@ -78,7 +82,9 @@ def main() -> int:
                     res = explain.run(name, frames, r["title"], r["transcript_native"],
                                       r["transcript_roman"], r["language"])
                     entry["backends"][name] = {k: res[k] for k in ("gist", "why_funny", "send_when", "seconds", "usage")}
-                    print(f"  {name:<7} {res['seconds']:>5}s  {_wrap(res['gist'])}")
+                    tokens = res["usage"].get("input_tokens"), res["usage"].get("output_tokens")
+                    used = f"  [{tokens[0]} in / {tokens[1]} out tokens]" if tokens[0] is not None else ""
+                    print(f"  {name:<7} {res['seconds']:>5}s{used}  {_wrap(res['gist'])}")
                     print(f"          why: {_wrap(res['why_funny'], indent='               ')}")
                     print(f"          send: {'; '.join(res['send_when']) or '-'}")
                 except Exception as exc:

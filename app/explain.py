@@ -18,7 +18,9 @@ A backend is a module that calls `register(name, generate)` where
 
     generate(system: str, user: str, frames: list[Path]) -> {"text": str, "usage": {...}}
 
-so every route sees the identical prompt and returns text that is parsed the same
+and may give generate a `ready()` attribute returning (ok, reason): False when its key
+or server is missing, so ingest skips it with one clear warning instead of failing
+every clip. Every route sees the identical prompt and returns text that is parsed the same
 way, which is what makes them comparable (python -m app.compare_explain).
 
 Human-written values always win: a clip whose explain_source is "manual" or
@@ -158,11 +160,18 @@ def available() -> bool:
     if name in ("", "off", "manual"):
         return False
     try:
-        backend(name)
-        return True
+        ok, reason = ready(name)
     except Exception as exc:
-        log.warning("explain backend %r unavailable: %s", name, exc)
-        return False
+        ok, reason = False, str(exc)
+    if not ok:
+        log.warning("explain backend %r is not usable: %s", name, reason)
+    return ok
+
+
+def ready(name: str) -> tuple[bool, str]:
+    """(True, "") when the backend can run now; otherwise why not (no key, server down ...)."""
+    check = getattr(backend(name), "ready", None)
+    return check() if check else (True, "")
 
 
 def run(name: str, frames: list[Path], title: str, transcript_native: str, transcript_roman: str,

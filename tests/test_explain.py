@@ -81,3 +81,15 @@ def test_off_manual_and_unknown_never_call_a_model(monkeypatch):
         assert explain.available() is False
     with pytest.raises(LookupError):
         explain.backend("no-such-backend")
+
+
+def test_a_backend_that_is_not_ready_is_skipped_with_a_reason(monkeypatch):
+    def gen(system, user, frames):
+        raise AssertionError("must not run")
+    gen.ready = lambda: (False, "no key")
+    explain.register("keyless", gen)
+    monkeypatch.setattr(config, "EXPLAIN_BACKEND", "keyless")
+    assert explain.ready("keyless") == (False, "no key")
+    assert explain.available() is False
+    gen.ready = lambda: (True, "")
+    assert explain.available() is True
