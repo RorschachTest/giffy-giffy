@@ -43,7 +43,7 @@ def _wrap(text: str, width: int = 84, indent: str = "      ") -> str:
 def main() -> int:
     wanted = (_arg("--backends") or "").split(",") if _arg("--backends") else explain.available_backends()
     wanted = [w for w in wanted if w]
-    ids = [int(i) for i in (_arg("--clips") or "").split(",") if i]
+    picked = [i.strip() for i in (_arg("--clips") or "").split(",") if i.strip()]   # DB ids or share ids
     out_path = Path(_arg("--out") or config.DATA_DIR / "explain_compare.json")
     ref_path = config.DATA_DIR / "explain_reference.json"
     references = json.loads(ref_path.read_text(encoding="utf-8")) if ref_path.exists() else {}
@@ -53,7 +53,7 @@ def main() -> int:
             """SELECT id, left(sha256, 10) AS share_id, file, duration, title, language, transcript_native,
                       transcript_roman, gist, why_funny, send_when, explain_source
                  FROM clips ORDER BY id""").fetchall()
-    rows = [r for r in rows if not ids or r["id"] in ids]
+    rows = [r for r in rows if not picked or str(r["id"]) in picked or r["share_id"] in picked]
     if not wanted:
         print("no explain backend is available on this branch", file=sys.stderr)
         return 1
