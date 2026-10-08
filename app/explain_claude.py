@@ -40,7 +40,7 @@ def generate(system: str, user: str, frames: list[Path]) -> dict:
     client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY, timeout=config.EXPLAIN_TIMEOUT, max_retries=2)
     content = [_image_block(f) for f in frames] + [{"type": "text", "text": user}]
     reply = client.messages.create(
-        model=config.EXPLAIN_CLAUDE_MODEL, max_tokens=500, temperature=0.3, system=system,
+        model=config.EXPLAIN_CLAUDE_MODEL, max_tokens=500, system=system,
         messages=[{"role": "user", "content": content}],
     )
     return {"text": "".join(b.text for b in reply.content if b.type == "text"),
