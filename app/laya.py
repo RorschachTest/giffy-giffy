@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 import urllib.request
 from functools import lru_cache
 
@@ -177,6 +178,10 @@ def describe_clip(meta: dict, native: str, roman: str, people: list[str]) -> dic
                        "mood_choice": (mood_answer or {}).get("choice")}}
 
 
+DOWN_BACKOFF_S = 30
+_down_until = 0.0   # monotonic time before which query_intent does not call Laya
+
+
 @lru_cache(maxsize=2048)
 def _query_intent_cached(query: str) -> tuple[tuple[str, float], ...]:
     answers = predict({"search": query}, query_questions(), timeout=config.LAYA_SEARCH_TIMEOUT)
@@ -185,10 +190,12 @@ def _query_intent_cached(query: str) -> tuple[tuple[str, float], ...]:
 
 def query_intent(query: str) -> dict[str, float]:
     """What a search is about. Empty (never an error) when Laya is off, slow or down."""
-    if not available() or not query.strip():
+    global _down_until
+    if not available() or not query.strip() or time.monotonic() < _down_until:
         return {}
     try:
         return dict(_query_intent_cached(query.strip().lower()))
     except Exception as exc:  # search must never fail because of Laya
-        log.warning("laya query intent skipped: %s", exc)
+        _down_until = time.monotonic() + DOWN_BACKOFF_S   # a hung Laya must not cost every search its timeout
+        log.warning("laya query intent skipped (retry in %ss): %s", DOWN_BACKOFF_S, exc)
         return {}

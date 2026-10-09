@@ -40,6 +40,7 @@ candidates AS (
       WHERE q.qn <%% c.s_names OR q.qn <%% c.s_said OR q.qn <%% c.s_people
          OR q.qn <%% c.s_learned OR q.qn <%% c.s_all
          OR EXISTS (SELECT 1 FROM unnest(q.tokens) t WHERE t <%% c.s_all)
+      ORDER BY word_similarity(q.qn, c.s_all) DESC
       LIMIT 500)
     UNION
     (SELECT c.id FROM clips c, q
@@ -87,7 +88,7 @@ SELECT {COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS tm, NULL::r
 """
 
 
-def search(conn, query: str, limit: int = 24, log_query: bool = True) -> list[dict]:
+def search(conn, query: str, limit: int = 24, log_query: bool = True, intent: dict | None = None) -> list[dict]:
     query = (query or "").strip()
     if not query:
         return conn.execute(TRENDING_SQL, {"limit": limit}).fetchall()
@@ -95,7 +96,8 @@ def search(conn, query: str, limit: int = 24, log_query: bool = True) -> list[di
     qn = normalise(query)
     if not qn:  # emoji-only or punctuation-only query
         return []
-    intent = laya.query_intent(query)   # {} when Laya is off, slow or unsure
+    if intent is None:                  # callers that need it too pass it in: one Laya call per search
+        intent = laya.query_intent(query)   # {} when Laya is off, slow or unsure
     rows = conn.execute(SEARCH_SQL, {
         "qn": qn,
         "qv": vec(embed_one(query)),          # the model gets the query as typed

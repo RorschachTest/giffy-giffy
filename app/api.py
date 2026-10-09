@@ -93,9 +93,10 @@ def themes() -> dict:
 @app.get("/search")
 def search(request: Request, q: str = "", limit: int = 24) -> dict:
     limit = max(1, min(limit, 100))
+    intent = laya.query_intent(q) if q.strip() else {}
     with db.session() as conn:
-        rows = search_mod.search(conn, q, limit)
-    return {"query": q, "intent": laya.query_intent(q) if q.strip() else {},  # cached: no second call
+        rows = search_mod.search(conn, q, limit, intent=intent)
+    return {"query": q, "intent": intent,
             "count": len(rows), "results": [_public(r, request) for r in rows]}
 
 
