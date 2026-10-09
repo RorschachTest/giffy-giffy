@@ -194,7 +194,8 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
                 from . import stt  # lazy: the model is only loaded when needed
 
                 wav = media.extract_audio(video, tmp / "audio.wav")
-                result = stt.transcribe(wav, language)
+                result = stt.transcribe(wav, language, stt.hint(meta["title"], meta["folk_names"],
+                                                                meta["source_title"]))
                 raw["stt"] = result
                 native = result["text"]
                 language = language or result["language"]

@@ -12,7 +12,7 @@ x-app: &app
     DATA_DIR: /data
     MODELS_DIR: /models
     # Values come from .env when it exists (see .env.example); otherwise the defaults here.
-    WHISPER_MODEL: ${WHISPER_MODEL:-small}
+    WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
     DEFAULT_LANGUAGE: ${DEFAULT_LANGUAGE:-}
     ENABLE_FACES: ${ENABLE_FACES:-1}
     ENABLE_VIBE: ${ENABLE_VIBE:-1}

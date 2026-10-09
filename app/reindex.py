@@ -6,8 +6,10 @@
     python -m app.reindex --laya       first add Laya topics to every clip (keeps existing ones)
     python -m app.reindex --vibe --replace
                                        recompute mood on every clip, overwriting hand edits too
+    python -m app.reindex --stt        first re-run speech to text on every clip with audio
+                                       (not typed sidecar transcripts); then --laya is worth a rerun
 
-Does not re-run speech to text or faces; it only re-derives from stored facts.
+Without --stt it does not re-run speech to text or faces; it only re-derives from stored facts.
 """
 from __future__ import annotations
 
@@ -24,6 +26,36 @@ def _report_failed(step: str, failed: list[int], total: int) -> None:
     if failed:
         print(f"{step}: {len(failed)} of {total} clip(s) skipped (ids {failed}); fix the cause and run again",
               file=sys.stderr)
+
+
+def backfill_stt() -> None:
+    """Transcribe every clip with audio again, with the current model and settings.
+    Transcripts that came typed in a sidecar are a person's and are left alone."""
+    from . import stt
+    from .text import has_devanagari, to_roman
+
+    with db.session() as conn:
+        rows = conn.execute("SELECT * FROM clips WHERE has_audio ORDER BY id").fetchall()
+    failed = []
+    for r in rows:
+        raw = r["raw"] or {}
+        if (raw.get("stt") or {}).get("source") == "sidecar":
+            continue
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                wav = media.extract_audio(config.MEDIA_DIR / r["file"], Path(tmp) / "audio.wav")
+                language = (raw.get("sidecar") or {}).get("language") or config.DEFAULT_LANGUAGE
+                result = stt.transcribe(wav, language, stt.hint(r["title"], r["folk_names"], r["source_title"]))
+            native = result["text"]
+            roman = to_roman(native) if has_devanagari(native) else native
+            with db.session() as conn:
+                conn.execute("""UPDATE clips SET transcript_native = %s, transcript_roman = %s, raw = %s
+                                 WHERE id = %s""", (native, roman, Jsonb({**raw, "stt": result}), r["id"]))
+            print(f"stt: clip {r['id']} {r['title']!r}: {roman[:100]!r}")
+        except Exception as exc:   # one bad clip must not stop the rest
+            failed.append(r["id"])
+            print(f"stt: clip {r['id']} {r['title']!r} SKIPPED: {exc}", file=sys.stderr)
+    _report_failed("stt", failed, len(rows))
 
 
 def backfill_laya() -> None:
@@ -88,6 +120,10 @@ def backfill_vibe(replace: bool = False) -> None:
 def main() -> None:
     embed = "--no-embed" not in sys.argv
     db.init_db()
+    if "--stt" in sys.argv:
+        if not config.ENABLE_STT:
+            sys.exit("--stt needs ENABLE_STT=1")
+        backfill_stt()
     if "--laya" in sys.argv:
         if not laya.available():
             sys.exit("--laya needs LAYA_URL")

@@ -35,10 +35,14 @@ POLL_SECONDS = float(os.getenv("POLL_SECONDS", "3"))
 
 # Speech to text
 ENABLE_STT = _bool("ENABLE_STT", True)
-WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")       # small | medium | large-v3
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large-v3")    # small | medium | large-v3 (large-v3 needs ~4 GB RAM)
 WHISPER_COMPUTE = os.getenv("WHISPER_COMPUTE", "int8")    # int8 on CPU, float16 on GPU
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
 DEFAULT_LANGUAGE = os.getenv("DEFAULT_LANGUAGE", "") or None  # e.g. "hi"; empty = auto-detect
+# Auto-detect may only answer one of these; anything else is re-run as the fallback.
+STT_LANGUAGES = {x.strip() for x in os.getenv("STT_LANGUAGES", "hi,en").split(",") if x.strip()}
+STT_FALLBACK_LANGUAGE = os.getenv("STT_FALLBACK_LANGUAGE", "hi")
+STT_HINT = _bool("STT_HINT", True)   # title / folk names / film as Whisper's prompt
 
 # Text embeddings (meaning-based search)
 EMBED_BACKEND = os.getenv("EMBED_BACKEND", "fastembed")   # fastembed | hash (tests only)
