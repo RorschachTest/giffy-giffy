@@ -16,15 +16,21 @@ import time
 from functools import lru_cache
 from pathlib import Path
 
-from . import config, db, media
+from . import config, db, media, storage
 from .text import has_devanagari, to_roman
 
-# name -> (model, language, use a hint prompt)
-SETUPS: dict[str, tuple[str, str | None, bool]] = {
-    "small-hi":       ("small", "hi", False),      # what runs today for sidecar-tagged Hindi clips
-    "large-hi":       ("large-v3", "hi", False),
-    "large-auto":     ("large-v3", None, False),   # Hinglish: let it pick, English words stay English
-    "large-hi-hint":  ("large-v3", "hi", True),    # title + names as a hint for spellings
+# A mixed-script sample: Whisper continues in the style of its prompt, so English
+# words said inside Hindi come out in Latin letters. Kept generic so nothing in it is
+# likely to be copied into a transcript.
+STYLE = "हाँ, मैं sure हूँ, ये बात actually सही है।"
+
+# name -> (model, language, use a hint prompt, prefix the style sample)
+SETUPS: dict[str, tuple[str, str | None, bool, bool]] = {
+    "small-hi":        ("small", "hi", False, False),      # what ran before for sidecar-tagged Hindi clips
+    "large-hi":        ("large-v3", "hi", False, False),
+    "large-auto":      ("large-v3", None, False, False),   # Hinglish: let it pick, English words stay English
+    "large-hi-hint":   ("large-v3", "hi", True, False),    # title + names as a hint for spellings
+    "large-hi-style":  ("large-v3", "hi", True, True),     # style sample + hint
 }
 
 
@@ -43,11 +49,12 @@ def hint(clip: dict) -> str:
 
 
 def run(setup: str, wav: Path, clip: dict) -> dict:
-    model, language, use_hint = SETUPS[setup]
+    model, language, use_hint, use_style = SETUPS[setup]
+    prompt = " ".join(p for p in ((STYLE if use_style else ""), (hint(clip) if use_hint else "")) if p)
     t0 = time.time()
     segments, info = _model(model).transcribe(
         str(wav), language=language, beam_size=5, vad_filter=True, condition_on_previous_text=False,
-        initial_prompt=(hint(clip) or None) if use_hint else None)
+        initial_prompt=prompt or None, temperature=[0.0, 0.2, 0.4], best_of=1)
     segs = list(segments)
     text = " ".join(s.text.strip() for s in segs).strip()
     return {"text": text, "roman": to_roman(text) if has_devanagari(text) else text,
@@ -78,7 +85,10 @@ def main() -> int:
     entries = {r["id"]: {"id": r["id"], "share_id": r["share_id"], "title": r["title"],
                          "stored": r["transcript_roman"], "setups": {}} for r in rows}
     with tempfile.TemporaryDirectory() as tmp:
-        wavs = {r["id"]: media.extract_audio(config.MEDIA_DIR / r["file"], Path(tmp) / f"{r['id']}.wav") for r in rows}
+        wavs = {}
+        for r in rows:
+            with storage.local_copy(r["file"]) as clip_file:
+                wavs[r["id"]] = media.extract_audio(clip_file, Path(tmp) / f"{r['id']}.wav")
         for s in setups:
             print(f"== {s}", flush=True)
             for r in rows:
