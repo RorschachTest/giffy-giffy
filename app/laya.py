@@ -63,7 +63,8 @@ NONE = "none"   # the "no clear topic / mood" option, so a name or quote is not 
 # --------------------------------------------------------------------------- #
 
 def available() -> bool:
-    return bool(config.LAYA_URL)
+    """The one switch every Laya call checks: ENABLE_LAYA=1 and a LAYA_URL."""
+    return config.ENABLE_LAYA and bool(config.LAYA_URL)
 
 
 def predict(state, questions: dict, timeout: float | None = None) -> dict:

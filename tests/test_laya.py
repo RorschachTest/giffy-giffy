@@ -151,3 +151,14 @@ def test_learned_queries_in_the_index_are_bounded(monkeypatch):
     fields = indexing.search_fields(clip, [])
     kept = fields["s_learned"].split()
     assert "99" in kept and len(fields["s_learned"].split(" query ")) <= indexing.MAX_LEARNED + 1
+
+
+def test_switch_off_means_no_laya_at_all(monkeypatch):
+    """ENABLE_LAYA=0: nothing calls Laya, even with a URL set."""
+    calls = []
+    monkeypatch.setattr(config, "ENABLE_LAYA", False)
+    monkeypatch.setattr(config, "LAYA_URL", "http://laya:8000")
+    monkeypatch.setattr(laya, "predict", lambda *a, **k: calls.append(a) or {})
+    monkeypatch.setattr(laya, "_down_until", 0.0)
+    laya._query_intent_cached.cache_clear()
+    assert not laya.available() and laya.query_intent("boss shouting") == {} and calls == []
