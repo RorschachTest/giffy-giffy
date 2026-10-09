@@ -17,6 +17,7 @@ from pathlib import Path
 from . import config
 
 MAX_HINT_CHARS = 200   # Whisper reads the prompt as the text before the clip; keep it short
+RETRY_TEMPERATURES = [0.0, 0.2, 0.4]   # tried in order when a decode looks unreliable
 
 
 @lru_cache(maxsize=1)
@@ -46,6 +47,11 @@ def _run(wav: Path, language: str | None, prompt: str) -> dict:
         vad_filter=True,                    # skip silence and music-only stretches
         condition_on_previous_text=False,   # reduces repeated-phrase hallucination
         initial_prompt=prompt or None,
+        # A short retry ladder with one sample per step. The default (6 temperatures x 5
+        # samples) took a 17 s clip to 171 s and 6.5 GB, enough to run Docker out of
+        # memory next to Laya; this gives the same text in 52 s and 4.7 GB.
+        temperature=RETRY_TEMPERATURES,
+        best_of=1,
     )
     segs = list(segments)
     return {
