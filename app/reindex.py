@@ -6,6 +6,8 @@
     python -m app.reindex --laya       first add Laya topics to every clip (keeps existing ones)
     python -m app.reindex --vibe --replace
                                        recompute mood on every clip, overwriting hand edits too
+    python -m app.reindex --roman      first rebuild the Roman transcript from the stored Devanagari
+                                       (after changing text.to_roman or the loanwords in hinglish.py)
     python -m app.reindex --stt        first re-run speech to text on every clip with audio
                                        (not typed sidecar transcripts); then --laya is worth a rerun
 
@@ -19,13 +21,29 @@ from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
-from . import config, db, faces, indexing, laya, media, pipeline, vibe
+from . import config, db, faces, indexing, laya, media, pipeline, storage, vibe
 
 
 def _report_failed(step: str, failed: list[int], total: int) -> None:
     if failed:
         print(f"{step}: {len(failed)} of {total} clip(s) skipped (ids {failed}); fix the cause and run again",
               file=sys.stderr)
+
+
+def backfill_roman() -> None:
+    """Re-romanise every stored Devanagari transcript with the current rules. No models."""
+    from .text import has_devanagari, to_roman
+
+    with db.session() as conn:
+        rows = conn.execute("SELECT id, transcript_native, transcript_roman FROM clips ORDER BY id").fetchall()
+        changed = 0
+        for r in rows:
+            native = r["transcript_native"] or ""
+            roman = to_roman(native) if has_devanagari(native) else native
+            if roman != (r["transcript_roman"] or ""):
+                conn.execute("UPDATE clips SET transcript_roman = %s WHERE id = %s", (roman, r["id"]))
+                changed += 1
+    print(f"roman: {changed} of {len(rows)} transcript(s) changed")
 
 
 def backfill_stt() -> None:
@@ -43,7 +61,8 @@ def backfill_stt() -> None:
             continue
         try:
             with tempfile.TemporaryDirectory() as tmp:
-                wav = media.extract_audio(config.MEDIA_DIR / r["file"], Path(tmp) / "audio.wav")
+                with storage.local_copy(r["file"]) as clip_file:
+                    wav = media.extract_audio(clip_file, Path(tmp) / "audio.wav")
                 language = (raw.get("sidecar") or {}).get("language") or config.DEFAULT_LANGUAGE
                 result = stt.transcribe(wav, language, stt.hint(r["title"], r["folk_names"], r["source_title"]))
             native = result["text"]
@@ -92,9 +111,8 @@ def backfill_vibe(replace: bool = False) -> None:
     failed = []
     for r in rows:
         try:
-            with tempfile.TemporaryDirectory(prefix="memeclip_") as tmp:
-                frames = media.extract_keyframes(config.MEDIA_DIR / r["file"], Path(tmp),
-                                                 r["duration"], config.KEYFRAMES)
+            with tempfile.TemporaryDirectory(prefix="memeclip_") as tmp, storage.local_copy(r["file"]) as clip_file:
+                frames = media.extract_keyframes(clip_file, Path(tmp), r["duration"], config.KEYFRAMES)
                 detected = [engine.detect(f) for f in frames] if engine else None
                 text_moods = None
                 if laya.available():
@@ -120,6 +138,8 @@ def backfill_vibe(replace: bool = False) -> None:
 def main() -> None:
     embed = "--no-embed" not in sys.argv
     db.init_db()
+    if "--roman" in sys.argv:
+        backfill_roman()
     if "--stt" in sys.argv:
         if not config.ENABLE_STT:
             sys.exit("--stt needs ENABLE_STT=1")

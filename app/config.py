@@ -22,11 +22,20 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://memeclip:memeclip@db:5432
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
 INBOX_DIR = DATA_DIR / "inbox"          # drop clips here
-MEDIA_DIR = DATA_DIR / "media"          # web-ready clips and thumbnails
+MEDIA_DIR = DATA_DIR / "media"          # web-ready clips and thumbnails (STORAGE=local)
 PROCESSED_DIR = DATA_DIR / "processed"  # originals, after a successful run
 FAILED_DIR = DATA_DIR / "failed"        # originals that could not be processed
 GALLERY_DIR = DATA_DIR / "gallery"      # gallery/<Person Name>/*.jpg
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "/models"))
+
+# Where web-ready clips live (app/storage.py): "local" = MEDIA_DIR, "s3" = a bucket
+# (Garage on this machine via scripts/setup_garage.sh, or R2 / S3 later).
+STORAGE = os.getenv("STORAGE", "local").strip().lower()
+S3_ENDPOINT = os.getenv("S3_ENDPOINT", "http://garage:3900")
+S3_REGION = os.getenv("S3_REGION", "garage")
+S3_BUCKET = os.getenv("S3_BUCKET", "memeclip")
+S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY", "")
+S3_SECRET_KEY = os.getenv("S3_SECRET_KEY", "")
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm", ".mkv", ".m4v"}
 MAX_CLIP_SECONDS = float(os.getenv("MAX_CLIP_SECONDS", "30"))

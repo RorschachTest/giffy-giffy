@@ -30,7 +30,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import config, db, indexing, intent, laya, search as search_mod, share as share_mod, understand as und
+from . import config, db, indexing, intent, laya, search as search_mod, share as share_mod, storage, understand as und
 from .embed import get_embedder
 
 STATIC = Path(__file__).with_name("static")
@@ -61,7 +61,12 @@ def favicon() -> RedirectResponse:   # browsers ask for this on pages that name 
     return RedirectResponse("/static/icon.svg", status_code=301)
 
 
-app.mount("/media", StaticFiles(directory=str(config.MEDIA_DIR)), name="media")
+@app.api_route("/media/{key}", methods=["GET", "HEAD"], include_in_schema=False)
+def media_file(key: str, request: Request):
+    """A clip or thumbnail, from MEDIA_DIR or the bucket (STORAGE); answers byte ranges for seeking."""
+    return storage.serve(key, request)
+
+
 app.include_router(share_mod.router)
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
 
