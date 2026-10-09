@@ -1,0 +1,173 @@
+@startuml clip-processing
+!include style.iuml
+title Clip Processing: Inbox to Searchable Record
+
+participant "Worker\nworker.py" as W
+participant "Pipeline\npipeline.py" as P
+participant "ffmpeg\nmedia.py" as FF
+participant "Whisper\nstt.py" as S
+participant "Faces\nfaces.py" as FA
+participant "Laya\nlaya-serve :8000" as L
+participant "Mood\nvibe.py" as V
+participant "Indexer\nindexing.py" as I
+database "Postgres\npgvector" as DB
+
+== POLL ==
+loop every POLL_SECONDS (3 s), for each settled file in data/inbox
+  W -> W : sync_gallery_if_changed()
+  note right of W
+    **worker.py · sync_gallery_if_changed()**
+    Re-reads data/gallery/<Person>/*.jpg only
+    when a file changed; new photos re-match
+    faces already seen in old clips.
+  end note
+  W -> W : pending()
+  note right of W
+    **worker.py · pending()**
+    Video files in data/inbox untouched for
+    more than 2 s (still copying otherwise),
+    oldest first.
+  end note
+  W -> P : process_clip(conn, video)
+
+== READ AND PROBE ==
+P -> P : load_meta(sidecar)
+note right of P
+  **pipeline.py · load_meta()**
+  clip.json (ours) or clip.info.json (yt-dlp).
+  Adds: title, caption, language, hashtags,
+  people, folk_names, topics, reactions ...
+end note
+P -> FF : probe(video)
+FF --> P : duration, width, height, has_audio
+alt duration > MAX_CLIP_SECONDS (30 s)
+  P --> W : raise Rejected
+  W -> W : move_aside(video, data/failed)
+end
+
+== DUPLICATES ==
+P -> FF : sha256(video)
+P -> DB : find_duplicate(sha)
+alt same file already stored
+  P -> DB : merge_duplicate()
+  note right of P
+    **pipeline.py · merge_duplicate()**
+    duplicates_seen + 1 (the trend signal).
+    The uploader's title and caption are kept
+    as extra names people use for the meme.
+  end note
+  P --> W : status "duplicate", match "exact"
+end
+P -> FF : extract_keyframes(4) + dhash()
+FF --> P : 4 jpg frames, 4 x 64-bit picture hashes
+P -> DB : find_duplicate(sha, phash)
+note right of DB
+  Near duplicate when the mean Hamming
+  distance <= DEDUP_MAX_HAMMING (6 of 64 bits)
+  and durations differ < 0.7 s.
+  Catches re-encodes and resizes.
+end note
+alt picture hashes close to a stored clip
+  P -> DB : merge_duplicate()
+  P --> W : status "duplicate", match "near"
+end
+
+== WEB COPY ==
+P -> FF : transcode() + make_thumb()
+FF --> P : media/<sha16>.mp4, media/<sha16>.jpg
+
+== SPEECH ==
+P -> FF : extract_audio()
+P -> S : transcribe(wav, language="hi")
+S --> P : text, avg_logprob, language_probability
+note right of S
+  **stt.py · transcribe()**
+  faster-whisper "small", int8 on CPU.
+  vad_filter skips music-only stretches.
+  low_stt_confidence when avg_logprob < -1.0
+  or language_probability < 0.5.
+end note
+P -> P : to_roman(native)
+note right of P
+  **text.py · to_roman()**
+  Devanagari dialogue is also stored in
+  Roman letters, so it is findable as
+  "nam ya dam" (clip 6).
+end note
+P -> DB : INSERT INTO clips (facts so far)
+DB --> P : clip_id
+
+== PEOPLE ==
+P -> DB : people_in_text(title, caption, hashtags)
+P -> FA : detect(frame) x 4
+FA --> P : 512-number face vectors + boxes
+P -> DB : record_faces(clip_id, faces)
+note right of FA
+  **faces.py · record_faces()**
+  Each face is matched against the gallery;
+  cosine >= FACE_MATCH_THRESHOLD (0.42) names it.
+  Flags: unknown_faces, weak_face_match.
+end note
+
+== TOPICS (LAYA) ==
+P -> L : POST /v1/systemone\nstate: title + dialogue + people\nquestions: topic (choice), mood (choice)
+L --> P : probability per topic and per mood
+P -> L : POST /v1/systemone\nstate: title, caption, people only\nquestions: topic (choice)
+L --> P : probability per topic
+note right of L
+  **laya.py · describe_clip()**
+  One forward pass per call, no text generated.
+  Asked twice because noisy transcripts pull the
+  answer to generic topics; the title alone is
+  sharp when it names the topic.
+  A topic is kept at >= 0.45 in either reading
+  (max 5), after any sidecar topics.
+end note
+P -> DB : UPDATE clips SET topics
+
+== MOOD ==
+P -> V : analyse(frames, faces, dialogue, laya_mood)
+V -> V : face_scores(): FER+ on each face crop
+V -> V : scene_scores(): CLIP keyframes vs 13 mood sentences
+V -> V : combine() + pick()
+note right of V
+  **vibe.py · combine()**
+  faces 0.45, scene 0.40, Laya text 0.30
+  (weights re-scaled when a signal is missing).
+  Moods >= VIBE_MIN_SCORE (0.30), top 3.
+  use_when from a fixed table per mood,
+  description from a template.
+end note
+V --> P : reactions, use_when, description, raw scores
+P -> DB : UPDATE (only fields the sidecar left empty)
+
+== INDEX ==
+P -> DB : UPDATE people, needs_review, review_reasons, raw
+P -> I : refresh(conn, clip_id)
+I -> I : search_fields()
+note right of I
+  **indexing.py · search_fields()**
+  s_names   folk names + cleaned title
+  s_said    romanised transcript
+  s_people  people + aliases + film
+  s_meta    caption, mood, use-when, topics
+  all through normalise(): the same function
+  the query goes through at search time.
+end note
+I -> I : embed_one(embedding_text())
+note right of I
+  MiniLM multilingual -> 384 numbers.
+  Text: title, dialogue, people, film,
+  "Mood: ...", "Use when: ...", "About: ...".
+end note
+I -> DB : UPDATE s_* columns, embedding
+P --> W : status "new", clip_id, review reasons
+W -> W : move_aside(video, data/processed)
+note right of W
+  **worker.py · run_once()**
+  Any exception: the original goes to
+  data/failed with the traceback in
+  <name>.error.txt; the loop carries on.
+end note
+end
+@enduml
