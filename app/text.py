@@ -13,6 +13,8 @@ from __future__ import annotations
 import re
 import unicodedata
 
+from . import hinglish
+
 # --------------------------------------------------------------------------- #
 # Devanagari -> casual Roman
 # --------------------------------------------------------------------------- #
@@ -101,9 +103,16 @@ def _word_to_roman(word: str) -> str:
     return "".join(c + ("a" if v == INHERENT else v) + s for c, v, s in units)
 
 
+_LOANWORDS = hinglish.build(_word_to_roman)   # "veediyo" -> "video": English said inside Hindi
+
+
 def to_roman(text: str) -> str:
-    """Transliterate any Devanagari in `text`; everything else is left untouched."""
-    return _DEVANAGARI_WORD.sub(lambda m: _word_to_roman(m.group(0)), text)
+    """Transliterate any Devanagari in `text`; everything else is left untouched.
+    An English word Whisper wrote in Devanagari (वीडियो) comes back in English (video)."""
+    def word(m: re.Match) -> str:
+        roman = _word_to_roman(m.group(0))
+        return _LOANWORDS.get(roman, roman)
+    return _DEVANAGARI_WORD.sub(word, text)
 
 
 def has_devanagari(text: str) -> bool:

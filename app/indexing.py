@@ -16,10 +16,12 @@ Which fact feeds which column is the single most important tuning decision:
 """
 from __future__ import annotations
 
-from . import faces
+from . import config, faces
 from .db import vec
 from .embed import embed_one
 from .text import clean_caption, normalise
+
+MAX_LEARNED = 30   # most-used queries kept in s_learned; the rest stay in learned_queries
 
 MAX_COMMENTS_INDEXED = 10
 
@@ -42,7 +44,7 @@ def search_fields(clip: dict, aliases: list[str]) -> dict:
         "s_people": normalise(" ".join(people)),
         "s_meta": normalise(" ".join(meta)),
         # learned queries were normalised when they were recorded
-        "s_learned": " ".join(clip["learned_queries"].keys()),
+        "s_learned": "" if not config.LEARN_FROM_SHARES else " ".join(sorted(clip["learned_queries"], key=clip["learned_queries"].get, reverse=True)[:MAX_LEARNED]),
     }
     f["s_all"] = " ".join(v for v in f.values() if v)
     return f

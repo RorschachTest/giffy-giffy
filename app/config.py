@@ -22,11 +22,20 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://memeclip:memeclip@db:5432
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
 INBOX_DIR = DATA_DIR / "inbox"          # drop clips here
-MEDIA_DIR = DATA_DIR / "media"          # web-ready clips and thumbnails
+MEDIA_DIR = DATA_DIR / "media"          # web-ready clips and thumbnails (STORAGE=local)
 PROCESSED_DIR = DATA_DIR / "processed"  # originals, after a successful run
 FAILED_DIR = DATA_DIR / "failed"        # originals that could not be processed
 GALLERY_DIR = DATA_DIR / "gallery"      # gallery/<Person Name>/*.jpg
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "/models"))
+
+# Where web-ready clips live (app/storage.py): "local" = MEDIA_DIR, "s3" = a bucket
+# (Garage on this machine via scripts/setup_garage.sh, or R2 / S3 later).
+STORAGE = os.getenv("STORAGE", "local").strip().lower()
+S3_ENDPOINT = os.getenv("S3_ENDPOINT", "http://garage:3900")
+S3_REGION = os.getenv("S3_REGION", "garage")
+S3_BUCKET = os.getenv("S3_BUCKET", "memeclip")
+S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY", "")
+S3_SECRET_KEY = os.getenv("S3_SECRET_KEY", "")
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm", ".mkv", ".m4v"}
 MAX_CLIP_SECONDS = float(os.getenv("MAX_CLIP_SECONDS", "30"))
@@ -35,10 +44,14 @@ POLL_SECONDS = float(os.getenv("POLL_SECONDS", "3"))
 
 # Speech to text
 ENABLE_STT = _bool("ENABLE_STT", True)
-WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")       # small | medium | large-v3
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large-v3")    # small | medium | large-v3 (large-v3 needs ~4 GB RAM)
 WHISPER_COMPUTE = os.getenv("WHISPER_COMPUTE", "int8")    # int8 on CPU, float16 on GPU
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
 DEFAULT_LANGUAGE = os.getenv("DEFAULT_LANGUAGE", "") or None  # e.g. "hi"; empty = auto-detect
+# Auto-detect may only answer one of these; anything else is re-run as the fallback.
+STT_LANGUAGES = {x.strip() for x in os.getenv("STT_LANGUAGES", "hi,en").split(",") if x.strip()}
+STT_FALLBACK_LANGUAGE = os.getenv("STT_FALLBACK_LANGUAGE", "hi")
+STT_HINT = _bool("STT_HINT", True)   # title / folk names / film as Whisper's prompt
 
 # Text embeddings (meaning-based search)
 EMBED_BACKEND = os.getenv("EMBED_BACKEND", "fastembed")   # fastembed | hash (tests only)
@@ -81,6 +94,11 @@ DEDUP_MAX_DURATION_DIFF = float(os.getenv("DEDUP_MAX_DURATION_DIFF", "0.7"))
 W_KEYWORD = float(os.getenv("W_KEYWORD", "0.65"))
 W_SEMANTIC = float(os.getenv("W_SEMANTIC", "0.35"))
 W_POPULARITY = float(os.getenv("W_POPULARITY", "0.03"))
+# Shares teach search (the query becomes a way to find the clip, and shares lift the
+# clip). Off until there is real traffic: early shares only echo what search already
+# showed. Shares and their queries are still recorded either way, so turning this on
+# later uses the history.
+LEARN_FROM_SHARES = os.getenv("LEARN_FROM_SHARES", "0") == "1"
 # A clip is shown only if it clears at least one of these. Below them a "match" is
 # just letter-overlap noise. Starting values: tune them against your own test queries.
 MIN_KEYWORD = float(os.getenv("MIN_KEYWORD", "0.35"))

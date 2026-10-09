@@ -155,9 +155,16 @@ def test_08_trending_when_query_is_empty():
     assert top("")[0] == STATE["rasode"]  # seen 3 times
 
 
-def test_09_share_teaches_a_new_query():
+def test_09_share_teaches_a_new_query(monkeypatch):
     query = "mummy ne pakad liya"
     assert STATE["silent"] not in top(query)
+    with db.session() as conn:   # flag off: the share is recorded but search does not learn from it
+        assert search.record_share(conn, STATE["silent"], query)
+    assert list(clip(STATE["silent"])["learned_queries"].values()) == [1]   # still recorded
+    assert STATE["silent"] not in top(query)
+    with db.session() as conn:
+        conn.execute("UPDATE clips SET shares = 0, learned_queries = '{}' WHERE id = %s", (STATE["silent"],))
+    monkeypatch.setattr(config, "LEARN_FROM_SHARES", True)
     with db.session() as conn:
         assert search.record_share(conn, STATE["silent"], query)
         assert search.record_share(conn, STATE["silent"], "Mummy ne pakad liyaaa!!")  # same after normalising

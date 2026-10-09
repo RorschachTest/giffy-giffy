@@ -17,7 +17,7 @@ from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
-from . import config, faces, humor, indexing, laya, media, vibe
+from . import config, faces, humor, indexing, laya, media, storage, vibe
 from .text import clean_caption, has_devanagari, to_roman
 
 log = logging.getLogger("pipeline")
@@ -163,7 +163,8 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
         merge_duplicate(conn, dup, meta)
         return {"status": "duplicate", "clip_id": dup, "match": "exact"}
 
-    written: list[Path] = []
+    written: list[Path] = []   # local files to remove if the clip fails
+    stored: list[str] = []     # keys already in storage, to remove too
     with tempfile.TemporaryDirectory(prefix="memeclip_") as tmp_name:
         tmp = Path(tmp_name)
         frames = media.extract_keyframes(video, tmp, info.duration, config.KEYFRAMES)
@@ -194,7 +195,8 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
                 from . import stt  # lazy: the model is only loaded when needed
 
                 wav = media.extract_audio(video, tmp / "audio.wav")
-                result = stt.transcribe(wav, language)
+                result = stt.transcribe(wav, language, stt.hint(meta["title"], meta["folk_names"],
+                                                                meta["source_title"]))
                 raw["stt"] = result
                 native = result["text"]
                 language = language or result["language"]
@@ -301,9 +303,17 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
                 (list(people), bool(reasons), reasons, Jsonb(raw), clip_id),
             )
             indexing.refresh(conn, clip_id)
+            # last, once everything else worked: into storage (the bucket, when STORAGE=s3)
+            for path in (out_video, out_thumb):
+                stored.append(storage.save(path))
         except Exception:
             for p in written:
                 p.unlink(missing_ok=True)
+            for key in stored:
+                try:
+                    storage.delete(key)
+                except Exception:
+                    log.exception("could not remove %s from storage", key)
             raise
 
     return {"status": "new", "clip_id": clip_id, "review": reasons}

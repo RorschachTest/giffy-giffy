@@ -40,6 +40,7 @@ candidates AS (
       WHERE q.qn <%% c.s_names OR q.qn <%% c.s_said OR q.qn <%% c.s_people
          OR q.qn <%% c.s_learned OR q.qn <%% c.s_all
          OR EXISTS (SELECT 1 FROM unnest(q.tokens) t WHERE t <%% c.s_all)
+      ORDER BY word_similarity(q.qn, c.s_all) DESC
       LIMIT 500)
     UNION
     (SELECT c.id FROM clips c, q
@@ -72,7 +73,7 @@ scored AS (
 )
 SELECT {COLUMNS}, kw, sem, tm,
        %(wk)s * kw + %(ws)s * sem + %(wt)s * tm * (1 - LEAST(kw, 1))
-         + %(wp)s * LEAST(ln(shares + duplicates_seen), 3) AS score
+         + %(wp)s * LEAST(ln(%(learn)s * shares + duplicates_seen), 3) AS score
   FROM scored
  WHERE kw >= %(min_kw)s OR sem >= %(min_sem)s OR tm >= %(min_tm)s
  ORDER BY score DESC, id
@@ -87,7 +88,7 @@ SELECT {COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS tm, NULL::r
 """
 
 
-def search(conn, query: str, limit: int = 24, log_query: bool = True) -> list[dict]:
+def search(conn, query: str, limit: int = 24, log_query: bool = True, intent: dict | None = None) -> list[dict]:
     query = (query or "").strip()
     if not query:
         return conn.execute(TRENDING_SQL, {"limit": limit}).fetchall()
@@ -95,14 +96,15 @@ def search(conn, query: str, limit: int = 24, log_query: bool = True) -> list[di
     qn = normalise(query)
     if not qn:  # emoji-only or punctuation-only query
         return []
-    intent = laya.query_intent(query)   # {} when Laya is off, slow or unsure
+    if intent is None:                  # callers that need it too pass it in: one Laya call per search
+        intent = laya.query_intent(query)   # {} when Laya is off, slow or unsure
     rows = conn.execute(SEARCH_SQL, {
         "qn": qn,
         "qv": vec(embed_one(query)),          # the model gets the query as typed
         "tokens": [t for t in qn.split() if len(t) >= 3] or qn.split(),
         "qt": list(intent), "qw": list(intent.values()),
         "wk": config.W_KEYWORD, "ws": config.W_SEMANTIC, "wt": config.W_TOPIC,
-        "wp": config.W_POPULARITY,
+        "wp": config.W_POPULARITY, "learn": 1 if config.LEARN_FROM_SHARES else 0,
         "min_kw": config.MIN_KEYWORD, "min_sem": config.MIN_SEMANTIC,
         "min_tm": config.MIN_TOPIC, "limit": limit,
     }).fetchall()
@@ -133,6 +135,6 @@ def record_share(conn, clip_id: int, query: str | None) -> bool:
     else:
         updated = conn.execute("UPDATE clips SET shares = shares + 1 WHERE id = %s",
                                (clip_id,)).rowcount
-    if updated and qn:
+    if updated and qn and config.LEARN_FROM_SHARES:
         indexing.refresh(conn, clip_id, embed=False)
     return bool(updated)

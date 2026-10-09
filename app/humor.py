@@ -200,7 +200,8 @@ def facts_from_clip(clip: dict) -> dict:
         "id": clip.get("id"),
         "title": title, "caption": caption, "dialogue": dialogue, "description": description,
         # The clip's own joke: the caption frames a situation, the clip answers it.
-        "setup": caption or ("; ".join(use_when) if use_when else ""),
+        # use_when is auto-written from moods, so it is not a setup: bare templates have none
+        "setup": caption,
         "punchline": dialogue or description or title,
         "about": ". ".join(p for p in (title, ", ".join(folk), dialogue, description,
                                         "; ".join(use_when), caption) if p),

@@ -119,7 +119,35 @@ def test_query_intent_is_cached(fake_laya):
 
 def test_query_intent_never_fails(monkeypatch):
     monkeypatch.setattr(config, "LAYA_URL", "http://127.0.0.1:9")   # nothing listens there
+    monkeypatch.setattr(laya, "_down_until", 0.0)
     laya._query_intent_cached.cache_clear()
     assert laya.query_intent("anything") == {}
     monkeypatch.setattr(config, "LAYA_URL", "")
     assert laya.query_intent("anything") == {}
+
+
+def test_a_failed_query_intent_backs_off(monkeypatch):
+    """lru_cache does not keep failures, so one hung Laya must not cost every search its timeout."""
+    from app import laya
+    calls = []
+
+    def boom(q):
+        calls.append(q)
+        raise OSError("hung")
+    monkeypatch.setattr(config, "LAYA_URL", "http://127.0.0.1:9")
+    monkeypatch.setattr(laya, "_query_intent_cached", boom)
+    monkeypatch.setattr(laya, "_down_until", 0.0)
+    assert laya.query_intent("a") == {} and laya.query_intent("b") == {}
+    assert calls == ["a"]          # the second search did not call Laya at all
+
+
+def test_learned_queries_in_the_index_are_bounded(monkeypatch):
+    from app import indexing
+    monkeypatch.setattr(config, "LEARN_FROM_SHARES", True)
+    learned = {f"query {i}": i for i in range(100)}
+    clip = {"learned_queries": learned, "hashtags": [], "folk_names": [], "title": "", "transcript_roman": "",
+            "transcript_native": "", "people": [], "reactions": [], "use_when": [], "topics": [],
+            "description": "", "caption": "", "source_title": "", "comments": []}
+    fields = indexing.search_fields(clip, [])
+    kept = fields["s_learned"].split()
+    assert "99" in kept and len(fields["s_learned"].split(" query ")) <= indexing.MAX_LEARNED + 1
