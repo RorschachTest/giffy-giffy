@@ -40,7 +40,7 @@ body { font-size: 15px; line-height: 1.5; }
 /* no headline: search first */
 main { max-width: 1160px; margin: 0 auto; padding: 16px 16px 48px; }
 .hero { gap: 12px; padding-bottom: 16px; }
-.eyebrow, .hero h1, .hero p.lede { display: none; }
+.eyebrow, .hero h1, .hero p.subline, .hero p.lede { display: none; }
 .search svg { left: 14px; color: var(--text-3); }
 #q { height: 48px; background: var(--inset); border: 1px solid var(--line); border-radius: 12px; padding: 0 16px 0 44px; font-size: 17px; }
 #q::placeholder { color: var(--text-3); }
