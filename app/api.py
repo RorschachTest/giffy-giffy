@@ -11,6 +11,10 @@
     POST  /upload               drop a clip into the inbox from the browser
     GET   /media/...            the clip files
     GET   /c/{share_id}         share link: video page that chat apps unfurl (share.py)
+    GET   /clips/{id}/humor     why the clip is funny on its own (understand.py)
+    POST  /understand           what a meme says sent after some chat messages, and why it is funny
+    POST  /understand/feedback  what it really meant / whether it landed: the engine learns from it
+    GET   /understand/stats     how often the engine's reading matched people's
 """
 from __future__ import annotations
 
@@ -26,7 +30,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import config, db, indexing, laya, search as search_mod, share as share_mod
+from . import config, db, indexing, intent, laya, search as search_mod, share as share_mod, understand as und
 from .embed import get_embedder
 
 STATIC = Path(__file__).with_name("static")
@@ -217,3 +221,60 @@ def upload(
         shutil.copyfileobj(file.file, out)
     partial.rename(config.INBOX_DIR / f"{stem}{suffix}")
     return {"ok": True, "queued_as": f"{stem}{suffix}"}
+
+
+class UnderstandBody(BaseModel):
+    clip_id: int | None = None
+    link: str | None = None            # a share link (/c/<id>) or bare share id, as sent in a chat
+    context: list[str] = []            # the messages before the meme, oldest first
+    caption: str = ""                  # what the sender typed with it
+
+
+class FeedbackBody(UnderstandBody):
+    intent: str | None = None          # what it really meant: one of GET /understand/intents
+    funny: bool | None = None          # did it land
+
+
+def _clip_for(conn, body: UnderstandBody) -> dict:
+    if body.clip_id is None and not body.link:
+        raise HTTPException(400, "give clip_id or link")
+    clip = und.find_clip(conn, body.clip_id, body.link)
+    if clip is None:
+        raise HTTPException(404, "no such clip")
+    return clip
+
+
+@app.get("/clips/{clip_id}/humor")
+def clip_humor(clip_id: int) -> dict:
+    with db.session() as conn:
+        clip = und.find_clip(conn, clip_id)
+        if clip is None:
+            raise HTTPException(404, "no such clip")
+        return und.understand(conn, clip)
+
+
+@app.post("/understand")
+def understand(body: UnderstandBody) -> dict:
+    with db.session() as conn:
+        return und.understand(conn, _clip_for(conn, body), body.context, body.caption)
+
+
+@app.get("/understand/intents")
+def intents() -> dict:
+    return {"intents": {k: v["gloss"] for k, v in intent.INTENTS.items()}}
+
+
+@app.post("/understand/feedback")
+def understand_feedback(body: FeedbackBody) -> dict:
+    with db.session() as conn:
+        clip = _clip_for(conn, body)
+        try:
+            return und.record_feedback(conn, clip, body.context, body.caption, body.intent, body.funny)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+
+
+@app.get("/understand/stats")
+def understand_stats() -> dict:
+    with db.session() as conn:
+        return und.accuracy(conn)

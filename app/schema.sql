@@ -100,6 +100,22 @@ CREATE TABLE IF NOT EXISTS clip_faces (
 );
 CREATE INDEX IF NOT EXISTS clip_faces_clip ON clip_faces (clip_id);
 
+-- What a meme meant when it was sent in a chat, as people told us (app/understand.py).
+-- acts and features are measured at feedback time, so learning never re-embeds.
+CREATE TABLE IF NOT EXISTS meme_feedback (
+    id         BIGSERIAL PRIMARY KEY,
+    at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    clip_id    BIGINT NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
+    context    TEXT[] NOT NULL DEFAULT '{}',   -- the messages before the meme, oldest first
+    caption    TEXT NOT NULL DEFAULT '',       -- what the sender typed with it
+    intent     TEXT,                           -- what it meant (intent.INTENTS), NULL = not said
+    funny      BOOLEAN,                        -- did it land, NULL = not said
+    acts       JSONB NOT NULL DEFAULT '{}',    -- dialogue acts of the context
+    features   JSONB NOT NULL DEFAULT '{}',    -- humor mechanism scores
+    predicted  TEXT                            -- what the engine read, to measure accuracy
+);
+CREATE INDEX IF NOT EXISTS meme_feedback_clip ON meme_feedback (clip_id);
+
 -- Every search, so you can see what people type and what finds nothing.
 CREATE TABLE IF NOT EXISTS query_log (
     id          BIGSERIAL PRIMARY KEY,

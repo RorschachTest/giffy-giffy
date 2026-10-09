@@ -157,6 +157,57 @@ docker compose exec worker python -m app.reindex --laya --vibe --replace
 `--replace` overwrites hand-edited mood fields too; leave it off to fill only
 empty ones.
 
+## Why it is funny, and what it says in a chat
+
+`app/understand.py` reads a meme the way a person in the chat would: what it
+communicates as a reply, who it is aimed at, and what makes it funny. No LLM
+and no training run: everything is measured in the same sentence-embedding
+space search uses, plus the mood scores the pipeline already stores.
+
+```bash
+curl -s localhost:8000/understand -H 'content-type: application/json' -d '{
+  "link": "https://memeclip.aiwroteit.dev/c/3f2a9b0c1d",
+  "context": ["who finished the milk?", "not me"],
+  "caption": "you 😂"}'
+```
+
+Shortened response (the numbers depend on the embedding model and on feedback):
+
+```json
+{"communicates": {"intent": "call_out", "aimed_at": "recipient", "confidence": 0.75,
+                  "reading": "Calling someone out: \"who did this?\" / \"caught you\".",
+                  "evidence": ["the clip's mood: shocked, angry", "the message reads as question (61%)", "..."]},
+ "funny": 0.62,
+ "why_funny": [{"mechanism": "incongruity", "why": "Incongruity: the message (...) and the clip (...) are far apart, yet both fit \"finding out who did it\" ..."}]}
+```
+
+**What it communicates** (`app/intent.py`): one of 16 intents (agree, mock,
+sarcasm, celebrate, sympathise, call out, told you so, ...), as a product of
+experts: the clip's own moods/topics/words, the dialogue act of the last
+messages pushed through a matrix of adjacency pairs (good news -> celebrate,
+confession -> call out, request -> refuse), the sentiment contrast between
+message and meme (cheerful message + grim clip = irony), and the sender's
+caption.
+
+**Why it is funny** (`app/humor.py`): humor theories as measurements —
+incongruity-resolution, Raskin's script opposition, tonal mismatch (face vs
+words), benign violation, superiority, relief, exaggeration, relatability,
+self-deprecation, recognition and laughter in the comments — combined by a
+logistic model. On its own a clip's setup is its caption; in a chat the setup
+is the message before it, which is where reaction templates become jokes.
+
+**It learns** from `POST /understand/feedback` (`{"link" | "clip_id",
+"context", "caption", "intent", "funny"}`): each clip gets a Dirichlet
+posterior over how people actually use it, the act -> intent matrix is
+re-estimated, and the funniness weights are refitted around their starting
+values. `GET /understand/stats` shows how often the engine agreed with people.
+From a shell: `docker compose exec api python -m app.understand <clip id or
+share link> "message before it" --caption "me rn"`.
+
+The prototype sentences and tables in `humor.py` and `intent.py` are the
+engine's whole "knowledge"; edit them like any other rule. Background and the
+datasets to calibrate against: [docs/meme-understanding.md](docs/meme-understanding.md).
+
 ## Share links and the browser extension
 
 Every clip has a short link, `/c/<first 10 hex of its SHA-256>`
@@ -182,6 +233,10 @@ app/vibe.py       mood: facial expressions, CLIP scene, dialogue tone
 app/laya.py       Laya client: clip topics + text mood, search intent
 app/share.py      share links /c/<id>: video page, preview tags, oEmbed
 extension/        browser extension: search and paste share links
+app/semspace.py   embedding maths shared by the engine: z-scores, prototype groups, pooling
+app/humor.py      why a meme is funny: humor theories as measurements, funniness model
+app/intent.py     what a meme says as a reply: dialogue acts, intents, product of experts
+app/understand.py the understanding engine: clip + chat in, reading out, learns from feedback
 app/pipeline.py   the per-clip assembly line, duplicates, review flags
 app/indexing.py   facts -> searchable columns
 app/search.py     hybrid ranking, share feedback
