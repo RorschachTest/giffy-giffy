@@ -26,7 +26,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -56,6 +56,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="memeclip", lifespan=lifespan)
 config.ensure_dirs()
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> RedirectResponse:   # browsers ask for this on pages that name no icon
+    return RedirectResponse("/static/icon.svg", status_code=301)
+
+
 app.mount("/media", StaticFiles(directory=str(config.MEDIA_DIR)), name="media")
 app.include_router(share_mod.router)
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff5fa2"/>
+      <stop offset="1" stop-color="#ff8a1f"/>
+    </linearGradient>
+  </defs>
+  <!-- a slightly tilted sticker: white peel edge, pink-to-orange tile, yellow play button -->
+  <g transform="rotate(-8 32 32)">
+    <rect x="5" y="5" width="54" height="54" rx="15" fill="#fff"/>
+    <rect x="9" y="9" width="46" height="46" rx="12" fill="url(#g)"/>
+    <path d="M25 19.5 L46 32 L25 44.5 Z" fill="#ffe14d" stroke="#111" stroke-width="3.5" stroke-linejoin="round"/>
+  </g>
+</svg>
