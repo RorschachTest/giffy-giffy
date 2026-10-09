@@ -8,6 +8,7 @@ x-app: &app
     DATABASE_URL: postgresql://memeclip:memeclip@db:5432/memeclip
     PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
     UI_THEME: ${UI_THEME:-}
+    LEARN_FROM_SHARES: ${LEARN_FROM_SHARES:-0}
     DATA_DIR: /data
     MODELS_DIR: /models
     # Values come from .env when it exists (see .env.example); otherwise the defaults here.

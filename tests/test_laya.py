@@ -141,8 +141,9 @@ def test_a_failed_query_intent_backs_off(monkeypatch):
     assert calls == ["a"]          # the second search did not call Laya at all
 
 
-def test_learned_queries_in_the_index_are_bounded():
+def test_learned_queries_in_the_index_are_bounded(monkeypatch):
     from app import indexing
+    monkeypatch.setattr(config, "LEARN_FROM_SHARES", True)
     learned = {f"query {i}": i for i in range(100)}
     clip = {"learned_queries": learned, "hashtags": [], "folk_names": [], "title": "", "transcript_roman": "",
             "transcript_native": "", "people": [], "reactions": [], "use_when": [], "topics": [],

@@ -81,6 +81,11 @@ DEDUP_MAX_DURATION_DIFF = float(os.getenv("DEDUP_MAX_DURATION_DIFF", "0.7"))
 W_KEYWORD = float(os.getenv("W_KEYWORD", "0.65"))
 W_SEMANTIC = float(os.getenv("W_SEMANTIC", "0.35"))
 W_POPULARITY = float(os.getenv("W_POPULARITY", "0.03"))
+# Shares teach search (the query becomes a way to find the clip, and shares lift the
+# clip). Off until there is real traffic: early shares only echo what search already
+# showed. Shares and their queries are still recorded either way, so turning this on
+# later uses the history.
+LEARN_FROM_SHARES = os.getenv("LEARN_FROM_SHARES", "0") == "1"
 # A clip is shown only if it clears at least one of these. Below them a "match" is
 # just letter-overlap noise. Starting values: tune them against your own test queries.
 MIN_KEYWORD = float(os.getenv("MIN_KEYWORD", "0.35"))
