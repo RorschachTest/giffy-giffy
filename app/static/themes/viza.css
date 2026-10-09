@@ -80,8 +80,6 @@ main { max-width: 1296px; margin: 0 auto; padding: 0 var(--gutter) 64px; }
 .hero h1 mark { background: var(--cobalt); color: var(--white); padding: 0 .08em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .hero h1 .tag { display: inline-block; vertical-align: .55em; margin-left: .25em; font-size: .2em; letter-spacing: .02em;
                 padding: .35em .6em; background: var(--magenta); color: var(--ink); transform: skewX(-10deg) rotate(-3deg); }
-.hero p.subline { justify-self: start; color: var(--yellow); font-weight: 800; font-size: clamp(17px, 2.2vw, 22px);
-                  padding: .1em .45em; background: var(--ink); }
 .hero p.lede { max-width: 54ch; font-size: 17px; font-weight: 500; color: var(--ink); }
 .search .core { background: var(--white); border: 3px solid var(--ink); }
 .search .core:focus-within { box-shadow: 6px 6px 0 var(--ink); }

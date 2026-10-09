@@ -72,10 +72,6 @@ main { max-width: 1240px; margin: 0 auto; padding: 0 24px 96px; }
 .hero h1 mark { background: none; color: inherit; }
 .hero h1 .tag { display: inline-block; font-size: .32em; letter-spacing: -.01em; vertical-align: .9em; margin-left: .2em;
                 padding: .18em .55em; border-radius: 999px; background: #ff5fa2; color: #160810; transform: rotate(6deg); font-weight: 700; }
-/* reads like a burned-in subtitle under the headline, same yellow as the clip subs */
-.hero p.subline { justify-self: start; color: var(--subtitle); font-weight: 600; font-size: clamp(17px, 2.2vw, 22px);
-                  padding: .15em .5em; border-radius: 6px; background: rgba(0, 0, 0, .55);
-                  text-shadow: 0 1px 2px rgba(0, 0, 0, .8); }
 .hero p.lede { color: var(--text-2); font-size: 17px; max-width: 52ch; }
 .shell { border-radius: 28px; padding: 6px; background: var(--tray); border: 1px solid var(--hair); }
 .core { border-radius: 22px; background: var(--core); box-shadow: inset 0 1px 1px rgba(255, 255, 255, .08); }
