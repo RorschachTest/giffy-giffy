@@ -280,10 +280,11 @@ linked from every share page as **Removal requests**. In short:
 - **The running site is private.** Search, upload and edit sit behind a login
   (see Public access below). Only a clip whose link is shared (`/c/…`) is
   publicly reachable, and its page links to the source when one is known.
-- **Collection uses official routes.** Clips come from files added by hand or
-  from Reddit's Data API with approved access, non-commercially, without
-  getting around any platform's blocks or limits. Reddit data is not used for
-  model training without Reddit's agreement.
+- **Where clips come from.** Files added by hand, and public compilation videos
+  downloaded and cut into clips for this personal project by a separate,
+  private collection script.
+  Downloading may go against the source site's terms, so the clips stay private:
+  they are never re-uploaded, sold or shared as a dataset.
 - **Faces stay local.** The face gallery covers public figures only, runs on
   this machine, and is never published. Unknown faces are named only by hand.
 - **Removal:** open an issue with the share link and the clip is taken down,
