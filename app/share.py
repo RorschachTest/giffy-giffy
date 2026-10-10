@@ -49,7 +49,7 @@ def _clip(share_id: str) -> dict:
     with db.session() as conn:
         row = conn.execute(
             """SELECT id, left(sha256, 10) AS share_id, file, thumb, duration, width, height,
-                      title, folk_names, transcript_roman, use_when, reactions, people
+                      title, folk_names, transcript_roman, use_when, reactions, people, source_urls
                  FROM clips WHERE left(sha256, 10) = %s""",
             (share_id,),
         ).fetchone()
@@ -70,6 +70,7 @@ def _facts(c: dict, base: str) -> dict:
         "thumb": f"{base}/media/{c['thumb']}" if c["thumb"] else "",
         "width": w, "height": h,
         "thumb_width": round(THUMB_HEIGHT * w / h) if h else THUMB_HEIGHT, "thumb_height": THUMB_HEIGHT,
+        "source": next((u for u in c.get("source_urls") or [] if urlparse(u).scheme in ("http", "https")), ""),
     }
 
 
@@ -130,6 +131,7 @@ PAGE = """<!doctype html>
   h1 {{ margin: 0; font-size: 18px; }}
   .said {{ color: #b9b5ac; font-style: italic; }}
   a {{ color: #ff8a5c; }}
+  .links {{ display: flex; flex-wrap: wrap; gap: 4px 16px; }}
 </style>
 </head>
 <body>
@@ -140,7 +142,7 @@ PAGE = """<!doctype html>
   <footer>
     <h1>{title}</h1>
     {said}
-    <div><a href="{home}">Find another meme</a></div>
+    <div class="links">{source}<a href="{home}">Find another meme</a><a href="{legal}">Removal requests</a></div>
   </footer>
 </main>
 <button class="unmute" id="u" type="button">Tap for sound</button>
@@ -171,6 +173,8 @@ def share_page(share_id: str, request: Request) -> HTMLResponse:
     return HTMLResponse(PAGE.format(
         title=e(f["name"]), meta=_meta_tags(f, base), video=e(f["video"]), thumb=e(f["thumb"]),
         said=f'<div class="said">“{e(f["said"])}”</div>' if f["said"] else "", home=e(base + "/"),
+        source=f'<a href="{e(f["source"])}" rel="noopener nofollow">Source</a>' if f["source"] else "",
+        legal=e(base + "/legal"),
     ))
 
 

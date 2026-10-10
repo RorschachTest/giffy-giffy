@@ -335,6 +335,18 @@ def test_17_share_links_unfurl_as_video(monkeypatch):
         assert '<meta name="twitter:card" content="player">' in body
         assert f'content="http://testserver/c/{share_id}/embed"' in body
         assert "application/json+oembed" in body
+        assert '<a href="http://testserver/legal">Removal requests</a>' in body
+        assert ">Source</a>" not in body   # no source known yet
+
+        with db.session() as conn:   # only http(s) sources become links
+            conn.execute("UPDATE clips SET source_urls = %s WHERE left(sha256, 10) = %s",
+                         (["javascript:alert(1)", "https://www.reddit.com/r/x/comments/abc/"], share_id))
+        body = client.get(f"/c/{share_id}").text
+        assert '<a href="https://www.reddit.com/r/x/comments/abc/" rel="noopener nofollow">Source</a>' in body
+        assert "javascript:" not in body
+
+        legal = client.get("/legal")
+        assert legal.status_code == 200 and "Data and legal" in legal.text and "__THEME__" not in legal.text
 
         assert client.get(f"/c/{share_id}/embed").status_code == 200
         o = client.get("/oembed", params={"url": f"http://testserver/c/{share_id}"}).json()

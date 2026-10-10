@@ -2,6 +2,7 @@
 
     GET   /                     the page, in the theme set by UI_THEME (?theme=<name> to preview)
     GET   /themes               the available themes
+    GET   /legal                where the clips and data come from, removal requests
     GET   /search?q=...         hybrid search (empty q = trending); `intent` is Laya's reading
     POST  /clips/{id}/share     count a share and learn the query that led to it
     GET   /clips/{id}           everything we know about one clip
@@ -83,16 +84,26 @@ def _public(row: dict, request: Request | None = None) -> dict:
     return out
 
 
-@app.get("/", response_class=HTMLResponse)
-def index(theme: str | None = None) -> HTMLResponse:
+def _themed_page(name: str, theme: str | None) -> HTMLResponse:
     names = theme_names()
     chosen = next((t for t in (theme, config.UI_THEME, "sticker") if t in names), names[0])
-    css = [STATIC / "base.css", THEMES / f"{chosen}.css", STATIC / "index.html"]
+    css = [STATIC / "base.css", THEMES / f"{chosen}.css", STATIC / name]
     version = str(int(max(f.stat().st_mtime for f in css)))   # new file -> new URL, no stale CSS
-    page = (STATIC / "index.html").read_text(encoding="utf-8")
+    page = (STATIC / name).read_text(encoding="utf-8")
     page = page.replace("__THEME__", chosen).replace("__VERSION__", version)
     # no-cache: browsers re-check the page on every visit, so an update shows at once
     return HTMLResponse(page, headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/", response_class=HTMLResponse)
+def index(theme: str | None = None) -> HTMLResponse:
+    return _themed_page("index.html", theme)
+
+
+@app.get("/legal", response_class=HTMLResponse)
+def legal(theme: str | None = None) -> HTMLResponse:
+    """Where the clips and data come from, and how to ask for removal."""
+    return _themed_page("legal.html", theme)
 
 
 @app.get("/themes")

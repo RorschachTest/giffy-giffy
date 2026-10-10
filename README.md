@@ -267,6 +267,33 @@ the plumbing and the ranking logic, not model quality.
   resizes, not crops or heavy watermarks.
 - Automatic collection from sources, moderation, accounts.
 
+## Data and legal
+
+memeclip is a personal, non-commercial project. The full statement is served
+at `/legal` (source: [`app/static/legal.html`](app/static/legal.html)) and
+linked from every share page as **Removal requests**. In short:
+
+- **The clips are not ours.** Most are cut from films, TV and online videos;
+  copyright stays with their owners and memeclip holds no licence. This
+  repository contains no clips: `data/**` (videos, thumbnails, face photos)
+  is kept out of git.
+- **The running site is private.** Search, upload and edit sit behind a login
+  (see Public access below). Only a clip whose link is shared (`/c/…`) is
+  publicly reachable, and its page links to the source when one is known.
+- **Collection uses official routes.** Clips come from files added by hand or
+  from Reddit's Data API with approved access, non-commercially, without
+  getting around any platform's blocks or limits. Reddit data is not used for
+  model training without Reddit's agreement.
+- **Faces stay local.** The face gallery covers public figures only, runs on
+  this machine, and is never published. Unknown faces are named only by hand.
+- **Removal:** open an issue with the share link and the clip is taken down,
+  with the person's gallery photos too if they ask.
+
+What a commercial version would need instead: licensed clips, or user uploads
+with a working takedown process; the IT Rules 2021 duties (grievance officer);
+India's DPDP Act; consent for using well-known people's likeness; and
+commercial licences for the face models (see the licence note at the end).
+
 ## Public access (Cloudflare Tunnel)
 
 The app is published at `https://memeclip.aiwroteit.dev` through a Cloudflare
@@ -290,8 +317,9 @@ service, separate from Docker, and starts at boot.
    `docker compose up -d api worker`.
 5. **Zero Trust > Access > Applications**: one self-hosted app for
    `memeclip.aiwroteit.dev` allowing only your email, and one for the paths
-   `c/*`, `media/*`, `oembed` with a Bypass policy, so share links and chat
-   previews stay public while upload and edit need a login.
+   `c/*`, `media/*`, `oembed`, `legal` with a Bypass policy, so share links,
+   chat previews and the legal page stay public while upload and edit need a
+   login.
 
 Logs: `/Library/Logs/com.cloudflare.cloudflared.err.log`. To rotate the token:
 `sudo cloudflared service uninstall`, then install again with the new one.
