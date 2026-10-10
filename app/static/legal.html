@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>memeclip · Data and legal</title>
+<meta name="description" content="Where memeclip's clips and data come from, who owns them, and how to ask for removal.">
+<link rel="icon" href="/static/icon.svg?v=__VERSION__" type="image/svg+xml">
+<link rel="stylesheet" href="/static/base.css?v=__VERSION__">
+<link rel="stylesheet" href="/static/themes/__THEME__.css?v=__VERSION__">
+<style>
+  .legal { max-width: 720px; margin: 0 auto; padding: 96px 16px 80px; line-height: 1.65; }
+  .legal h1 { font-family: var(--display, inherit); font-size: clamp(32px, 6vw, 48px); line-height: 1.05;
+              letter-spacing: -.03em; margin: 0 0 12px; }
+  .legal h2 { font-family: var(--display, inherit); font-size: 22px; letter-spacing: -.02em; margin: 44px 0 10px; }
+  .legal p, .legal li { color: var(--text-2, inherit); }
+  .legal strong { color: var(--text, inherit); font-weight: 600; }
+  .legal ul { padding-left: 20px; }
+  .legal li + li { margin-top: 6px; }
+  .legal a { color: var(--text, inherit); text-underline-offset: 3px; }
+  .legal .meta { color: var(--text-3, inherit); font-size: 14px; }
+  .legal .note { border: 1px solid var(--hair, rgba(127,127,127,.3)); border-radius: 16px; padding: 14px 18px; margin-top: 28px; }
+  .legal .back { display: inline-block; margin-bottom: 28px; font-size: 14px; color: var(--text-3, inherit); }
+</style>
+</head>
+<body>
+<main class="legal">
+  <a class="back" href="/">← memeclip</a>
+  <h1>Data and legal</h1>
+  <p class="meta">Last updated 10 October 2026</p>
+
+  <p>memeclip is a <strong>personal, non-commercial project</strong>: a search engine for short meme
+  clips in Hindi and English, built as portfolio and research work. It has no ads, no payments
+  and no user accounts. This page says where the clips come from, who owns them, and how to ask
+  for something to be removed.</p>
+
+  <h2>The clips belong to their owners</h2>
+  <ul>
+    <li>Most meme clips are cut from films, TV shows and online videos. <strong>memeclip does not own
+    them and holds no licence for them.</strong> Copyright stays with the studios, broadcasters and
+    creators who made them.</li>
+    <li>The search tool itself, meaning the code, the ranking and the tagging, is the project's own
+    work. The clips are not part of it.</li>
+    <li><strong>The public source code contains no clips.</strong> Videos, thumbnails and face photos
+    stay on the machine that runs memeclip and are kept out of the repository.</li>
+    <li>The running site is private: searching, uploading and editing need the owner's login.
+    A single clip becomes reachable by anyone only when the owner shares its link (<code>/c/…</code>).
+    Each shared clip remains its owner's work, and the shared page links back to the source when
+    the source is known.</li>
+  </ul>
+
+  <h2>Where the data comes from</h2>
+  <ul>
+    <li><strong>Clips added by hand</strong>, together with the title, caption and comments that came with them.</li>
+    <li><strong>Downloaded videos</strong>, mostly public "meme template" compilations, cut into
+    single clips for this personal project. Downloading may go against the terms of the site
+    the video came from. That is why the clips stay private: they are never re-uploaded and never
+    published as a collection. When the source is known, each clip records it, and the clip's
+    share page links to it.</li>
+    <li>Collected clips are used only to make this search engine work. They are not sold or
+    licensed, and are not shared as a dataset.</li>
+  </ul>
+
+  <h2>People and faces</h2>
+  <ul>
+    <li>memeclip can recognise <strong>well-known public figures</strong>, such as actors in famous
+    scenes, so a search like "nana patekar" finds their clips. It matches faces against a small
+    gallery of photos that the owner adds, and also finds names in titles and captions.</li>
+    <li>Face matching runs only on the owner's machine. <strong>Face photos and face data are never
+    published or shared, and are not for sale.</strong></li>
+    <li>memeclip is not for identifying private individuals. Faces it does not recognise get a name
+    only if the owner adds one by hand.</li>
+    <li>Recognising someone helps people find a clip. It does not mean that person endorses
+    memeclip, and their name and image are not used to promote anything.</li>
+    <li>The face models (InsightFace) are published for non-commercial research use, which is
+    another reason memeclip stays non-commercial.</li>
+  </ul>
+
+  <h2>Asking for removal</h2>
+  <p>If you own a clip, appear in one, or posted the original and want it taken down, open an issue at
+  <a href="https://github.com/RorschachTest/giffy-giffy/issues">github.com/RorschachTest/giffy-giffy/issues</a>
+  with the share link or a description of the clip. <strong>Clips are removed without argument,
+  usually within a few days.</strong> A person's photos and face data are removed from the gallery
+  in the same way.</p>
+
+  <h2>If this ever became a product</h2>
+  <p>Running memeclip as a business would need more than this page: licences for any clip
+  catalogue it offered, or a model where users upload their own clips backed by a working takedown
+  process; the duties India's IT Rules 2021 place on platforms, including a grievance officer;
+  compliance with India's Digital Personal Data Protection Act; and permission to use well-known
+  people's names and likeness commercially. None of that is in place, which is why memeclip stays
+  a non-commercial project.</p>
+
+  <p class="note">This page describes how the project is run. It is not legal advice, and it does
+  not grant anyone rights to the clips.</p>
+</main>
+</body>
+</html>
