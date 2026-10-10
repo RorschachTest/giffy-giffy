@@ -46,6 +46,7 @@
     <p id="status" role="status" aria-live="polite"></p>
   </section>
   <div id="grid" class="grid"></div>
+  <div class="more"><button id="more" class="cta light" type="button" hidden>Show more</button></div>
   <div id="table"></div>
 </main>
 </div>
@@ -141,6 +142,9 @@ function paintMood(node, mood) {
 const themeVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
 let mode = "search", lastQuery = "", editing = null, timer = null;
+// Browsing (empty search) pages through the whole library, PAGE clips at a time.
+const PAGE = 48;
+const browse = { loaded: 0, total: 0, busy: false };
 
 async function api(path, options) {
   const res = await fetch(path, options);
@@ -379,14 +383,14 @@ function placeOnScene(frame, scene) {
 const sceneObserver = ("ResizeObserver" in window)
   ? new ResizeObserver((entries) => { for (const e of entries) if (e.target._scene) placeOnScene(e.target, e.target._scene); })
   : null;
-async function dressScenes(cards, results) {
+async function dressScenes(cards, results, offset = 0) {
   const scenes = await loadScenes();
   if (!scenes) return;
   const order = themeVar("--scene-order").split(/\s+/).filter((n) => scenes[n]);
   const feature = themeVar("--scene-feature");
   cards.forEach((node, i) => {
     const c = results[i];
-    const name = (i === 0 && scenes[feature]) ? feature : order[c.id % order.length];
+    const name = (offset + i === 0 && scenes[feature]) ? feature : order[c.id % order.length];
     const scene = scenes[name];
     if (!scene) return;
     const frame = node.querySelector(".frame");
@@ -443,10 +447,10 @@ async function runSearch() {
   lastQuery = $("q").value.trim();
   for (const b of $("quick").children) b.setAttribute("aria-pressed", String(b.textContent === lastQuery));
   try {
-    const data = await api(`/search?q=${encodeURIComponent(lastQuery)}`);
+    const data = await api(lastQuery ? `/search?q=${encodeURIComponent(lastQuery)}` : `/search?q=&limit=${PAGE}`);
     const status = [];
     if (!lastQuery) {
-      status.push(el("span", "", data.count ? "Trending now" : ""));
+      status.push(el("span", "", data.total ? `All ${data.total} clip${data.total === 1 ? "" : "s"} · most shared first` : ""));
     } else {
       status.push(el("span", "", `${data.count} clip${data.count === 1 ? "" : "s"} · `));
       const read = intentText(data.intent);
@@ -456,6 +460,8 @@ async function runSearch() {
       lastQuery ? `Nothing for “${lastQuery}” yet` : "No clips yet",
       lastQuery ? "Try other words, a line from the clip, or a mood like shocked or late."
                 : "Add a clip, or drop video files into data/inbox.");
+    Object.assign(browse, { loaded: lastQuery ? 0 : data.count, total: lastQuery ? 0 : data.total || 0 });
+    updateMore();
   } catch (e) { $("status").textContent = `Search failed: ${e.message}. Check that memeclip is running, then search again.`; }
 }
 
@@ -478,8 +484,38 @@ async function runFailed() {
   $("table").replaceChildren(table);
 }
 
+function updateMore() {
+  const left = browse.total - browse.loaded;
+  $("more").hidden = !(mode === "search" && !lastQuery && left > 0);
+  $("more").textContent = `Show more (${left} left)`;
+}
+
+async function loadMore() {
+  if (browse.busy) return;
+  browse.busy = true;
+  $("more").disabled = true;
+  try {
+    const offset = browse.loaded;
+    const data = await api(`/search?q=&limit=${PAGE}&offset=${offset}`);
+    if (mode !== "search" || lastQuery) return;          // the view changed while loading
+    const cards = data.results.map((c, i) => card(c, offset + i));
+    $("grid").append(...cards);
+    reveal(cards);
+    dressScenes(cards, data.results, offset);
+    browse.total = data.total ?? browse.total;
+    browse.loaded = data.count ? offset + data.count : browse.total;   // an empty page means the end
+  } catch (e) {
+    $("status").textContent = `Loading more failed: ${e.message}. Try again.`;
+  } finally {
+    browse.busy = false;
+    $("more").disabled = false;
+    updateMore();
+  }
+}
+
 function setMode(next) {
   mode = next;
+  $("more").hidden = true;
   for (const m of ["search", "review", "failed"]) $("tab-" + m).setAttribute("aria-pressed", String(m === mode));
   ({ search: runSearch, review: runReview, failed: runFailed })[mode]();
 }
@@ -546,6 +582,7 @@ $("open-upload").onclick = () => $("upload").showModal();
 $("curate").onclick = () => setCurate(!document.body.classList.contains("curate"));
 for (const b of document.querySelectorAll("[data-close]")) b.onclick = () => b.closest("dialog").close();
 for (const m of ["search", "review", "failed"]) $("tab-" + m).onclick = () => setMode(m);
+$("more").onclick = loadMore;
 $("q").oninput = () => { clearTimeout(timer); timer = setTimeout(() => setMode("search"), 350); };
 // #curate in the address opens the curation view (also when only the # part changes)
 const curateFromHash = () => {

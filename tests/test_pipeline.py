@@ -268,6 +268,17 @@ def test_13_api():
         assert client.get("/review").json()["count"] == 0
         assert client.get("/queries/failed").json()["count"] >= 1
 
+        # browsing (empty query) pages through the whole library
+        with db.session() as conn:
+            n = conn.execute("SELECT count(*) AS n FROM clips").fetchone()["n"]
+        first = client.get("/search", params={"q": "", "limit": 2}).json()
+        rest = client.get("/search", params={"q": "", "limit": 100, "offset": 2}).json()
+        assert first["total"] == n and first["offset"] == 0 and first["count"] == min(2, n)
+        ids = [c["id"] for c in first["results"] + rest["results"]]
+        assert len(ids) == n and len(set(ids)) == n                     # every clip once, none twice
+        assert client.get("/search", params={"q": "", "offset": n}).json()["count"] == 0
+        assert client.get("/search", params={"q": "rasode"}).json()["total"] is None
+
         video = make_clip("upload.mp4", "rgbtestsrc", seconds=2)
         with video.open("rb") as f:
             r = client.post("/upload", files={"file": ("my clip!.mp4", f, "video/mp4")},

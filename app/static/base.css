@@ -91,6 +91,8 @@ body.curate .curate-only { display: flex; }
 .reveal.in { opacity: 1; transform: none; filter: none; }
 
 .empty { grid-column: 1 / -1; text-align: center; }
+.more { display: flex; justify-content: center; margin: 32px 16px 48px; }
+.more [hidden] { display: none; }
 .empty strong { display: block; }
 
 /* tables and dialogs */
