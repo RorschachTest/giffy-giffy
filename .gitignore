@@ -12,3 +12,6 @@ data/**
 # copies made by scripts/new_space.sh (data/<name>/...) and its .env backup
 data/*/*/.gitkeep
 .env.bak
+
+# macOS Finder files
+.DS_Store

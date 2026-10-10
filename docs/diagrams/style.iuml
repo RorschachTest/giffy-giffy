@@ -1,0 +1,44 @@
+' Shared look for the memeclip sequence diagrams.
+hide footbox
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 13
+skinparam roundCorner 4
+skinparam sequenceMessageAlign left
+skinparam responseMessageBelowArrow true
+skinparam titleFontSize 18
+skinparam titleFontStyle bold
+
+skinparam participant {
+  BackgroundColor #EBEBF3
+  BorderColor #6B6B7B
+  FontSize 14
+}
+skinparam actor {
+  BackgroundColor #EBEBF3
+  BorderColor #6B6B7B
+}
+skinparam database {
+  BackgroundColor #EBEBF3
+  BorderColor #6B6B7B
+}
+skinparam sequence {
+  ArrowColor #222222
+  LifeLineBorderColor #8A8A99
+  LifeLineBorderThickness 1
+  GroupBorderThickness 2
+  GroupHeaderFontStyle bold
+  DividerBorderThickness 2
+  DividerFontStyle bold
+  DividerFontSize 14
+}
+' Post-it notes
+skinparam note {
+  BackgroundColor #FFF2A8
+  BorderColor #D4B000
+  FontSize 12
+}
+
+' Render (from docs/diagrams):
+'   docker run --rm -v "$PWD:/data" -w /data plantuml/plantuml -tsvg clip-processing.puml search.puml

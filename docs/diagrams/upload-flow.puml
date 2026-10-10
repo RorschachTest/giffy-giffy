@@ -1,0 +1,163 @@
+@startuml upload-flow
+' Render (from docs/diagrams):
+'   docker run --rm -v "$PWD:/data" -w /data plantuml/plantuml -tsvg upload-flow.puml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 13
+skinparam titleFontSize 18
+skinparam titleFontStyle bold
+skinparam ArrowColor #222222
+skinparam swimlane {
+  BorderColor #8A8A99
+  TitleFontStyle bold
+  TitleFontSize 14
+}
+skinparam activity {
+  BackgroundColor #EBEBF3
+  BorderColor #6B6B7B
+  DiamondBackgroundColor #FFFFFF
+  DiamondBorderColor #6B6B7B
+}
+skinparam note {
+  BackgroundColor #FFF2A8
+  BorderColor #D4B000
+  FontSize 12
+}
+
+title Flow: Processing a Newly Uploaded Video
+
+|#F4F4F8|Browser|
+start
+:Person clicks **Add clip**,
+picks a video, types title / language;
+:POST /upload (form: file + metadata);
+
+|#FFFFFF|API (api.py)|
+if (extension in .mp4 .mov .webm .mkv .m4v?) then (no)
+  :400 "unsupported file type";
+  |Browser|
+  :Show the error;
+  stop
+else (yes)
+endif
+|API (api.py)|
+:Write sidecar **<name>.json**
+(title, caption, language, people ...);
+note right
+  **api.py · upload()**
+  Sidecar first, video last: the worker only
+  looks for videos, so it never picks up a clip
+  whose metadata has not landed yet.
+end note
+:Stream video to **<name>.mp4.part**,
+then rename to <name>.mp4;
+:Return {queued_as: <name>.mp4};
+|Browser|
+:Show "Queued";
+
+|#F4F4F8|Worker (worker.py)|
+:Wake up every 3 s (POLL_SECONDS);
+:Sync gallery if a photo changed;
+:pending(): videos in data/inbox
+untouched for > 2 s, oldest first;
+note right
+  The 2 s rule skips files still being
+  copied in by Finder or the browser.
+end note
+
+|#FFFFFF|Pipeline (pipeline.py)|
+:load_meta(sidecar)
+→ title, language, hashtags, people, topics;
+:ffprobe → duration, size, has_audio;
+if (duration > 30 s?) then (yes)
+  :raise Rejected;
+  |Worker (worker.py)|
+  :Move to **data/failed**
+  + <name>.error.txt;
+  stop
+else (no)
+endif
+|Pipeline (pipeline.py)|
+:SHA-256 of the file;
+if (same SHA already stored?) then (yes)
+  :merge_duplicate():
+  duplicates_seen + 1,
+  new title kept as a name;
+  |Worker (worker.py)|
+  :Move to **data/processed**;
+  stop
+else (no)
+endif
+|Pipeline (pipeline.py)|
+:4 keyframes + 64-bit picture hash each;
+if (picture hashes close to a stored clip?) then (yes)
+  :merge_duplicate()
+  (re-encode or resize of a known clip);
+  |Worker (worker.py)|
+  :Move to **data/processed**;
+  stop
+else (no)
+endif
+
+|Pipeline (pipeline.py)|
+:Web copy + thumbnail
+→ media/<sha16>.mp4 / .jpg;
+
+|#F4F4F8|Models|
+if (has audio?) then (yes)
+  :**Whisper** (stt.py): speech to text
+  → Devanagari + Roman transcript;
+  note right
+    low_stt_confidence when
+    avg_logprob < -1.0 or
+    language probability < 0.5
+  end note
+else (no)
+  :no_speech flag;
+endif
+
+|#FFFFFF|Postgres|
+:INSERT clip (facts so far) → clip_id;
+
+|#F4F4F8|Models|
+:**InsightFace** (faces.py): faces on keyframes,
+match against data/gallery;
+note right
+  Named at cosine >= 0.42.
+  Flags: unknown_faces, weak_face_match.
+end note
+if (Laya reachable?) then (yes)
+  :**Laya**: topic + mood choices,
+  on title + dialogue and on title alone;
+  note right
+    Topic kept at >= 0.45 in either reading,
+    after any sidecar topics.
+  end note
+else (no)
+  :laya_failed flag;
+endif
+:**Mood** (vibe.py): FER+ on faces,
+CLIP on keyframes, Laya text mood
+→ reactions, use_when, description;
+
+|Postgres|
+:UPDATE topics, mood, people,
+review flags, raw scores;
+:**Index** (indexing.py): s_names, s_said,
+s_people, s_meta + 384-number embedding;
+note right
+  Same normalise() the search query
+  goes through, so spellings meet.
+end note
+
+|Worker (worker.py)|
+:Move original to **data/processed**;
+:Log "<name> -> new, clip_id, review reasons";
+
+|Browser|
+:Clip shows in search and trending,
+with its share link /c/<id>;
+stop
+
+@enduml

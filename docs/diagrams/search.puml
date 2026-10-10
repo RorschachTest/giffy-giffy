@@ -1,0 +1,92 @@
+@startuml search
+!include style.iuml
+title Search: Query to Ranked Clips, and Learning from Shares
+
+actor "Person" as U
+participant "Test page\nindex.html" as PG
+participant "API\napi.py" as A
+participant "Search\nsearch.py" as S
+participant "Embedder\nembed.py" as E
+participant "Laya\nlaya-serve :8000" as L
+participant "Indexer\nindexing.py" as I
+database "Postgres\npgvector + pg_trgm" as DB
+
+== QUERY ==
+U -> PG : types "salary day"
+PG -> A : GET /search?q=salary day
+A -> S : search(conn, q, limit=24)
+alt empty query
+  S -> DB : TRENDING_SQL
+  note right of S
+    Most shared + most re-uploaded first.
+  end note
+end
+S -> S : normalise(q)
+note right of S
+  **text.py · normalise()**
+  Same function used at indexing time:
+  Devanagari to Roman, lowercase, stretched
+  letters collapsed, chat spellings unified.
+  "salary day" -> "salary day"
+end note
+S -> E : embed_one("salary day")
+E --> S : 384-number vector
+S -> L : query_intent("salary day")
+note right of L
+  **laya.py · query_intent()**
+  Two choice questions: topic (19 + none)
+  and mood (13 + none). Keeps the top 2 of
+  each at >= 0.3. Cached (2048 queries),
+  3 s limit; any failure returns {} and
+  search goes on without it.
+end note
+L --> S : money 0.99, happy 0.56
+
+== RANK ==
+S -> DB : SEARCH_SQL (qn, vector, tokens, intent)
+note right of DB
+  **candidates**
+  fuzzy trigram match on s_* columns
+  + 50 nearest embeddings
+  + clips whose topics or reactions
+    overlap the intent
+end note
+note right of DB
+  **per candidate**
+  kw  = best word_similarity over s_* columns
+  sem = 1 - cosine distance
+  tm  = sum of intent weights matching
+        topics or reactions (max 1)
+  score = 0.65 kw + 0.35 sem
+        + 0.25 tm (1 - kw) + popularity
+  shown if kw >= 0.35 or sem >= 0.45
+        or tm >= 0.5
+end note
+DB --> S : clip 6: kw 0.21, sem 0.15, tm 0.99, score 0.385
+S -> DB : INSERT INTO query_log
+note right of DB
+  Zero-result queries show up at
+  GET /queries/failed: the list of
+  missing clips or missing fields.
+end note
+S --> A : ranked rows
+A --> PG : results + intent
+PG --> U : cards, "read as money 0.99, happy 0.56"
+
+== LEARN FROM A SHARE ==
+U -> PG : clicks Share on clip 6
+PG -> A : POST /clips/6/share {q: "salary day"}
+A -> S : record_share(conn, 6, q)
+S -> DB : shares + 1, learned_queries["salary day"] + 1
+note right of S
+  **search.py · record_share()**
+  A query that ended in a share becomes a
+  way to find the clip: real behaviour,
+  not a model's guess. Next time
+  "salary day" matches clip 6 by its words.
+end note
+S -> I : refresh(conn, 6, embed=False)
+I -> DB : UPDATE s_learned
+A --> PG : ok
+PG --> U : link copied
+@enduml
