@@ -17,7 +17,9 @@ x-app: &app
     ENABLE_FACES: ${ENABLE_FACES:-1}
     ENABLE_VIBE: ${ENABLE_VIBE:-1}
     VIBE_MIN_SCORE: ${VIBE_MIN_SCORE:-0.30}
-    # Laya: topics + text mood at ingest, query intent at search. LAYA_URL= (empty) turns it off.
+    # Laya: topics + text mood at ingest, query intent at search. Off by default:
+    # ENABLE_LAYA=1 in .env turns it on (start the service with: docker compose --profile laya up -d laya).
+    ENABLE_LAYA: ${ENABLE_LAYA:-0}
     LAYA_URL: ${LAYA_URL-http://laya:8000}
     LAYA_MODEL: ${LAYA_MODEL:-multilingual}
     LAYA_TOPIC_MIN: ${LAYA_TOPIC_MIN:-0.45}
@@ -85,6 +87,7 @@ services:
   # downloads the multilingual checkpoint (~1.3 GB) into the laya-cache volume.
   # Sandbox: http://localhost:8001/docs (bound to this machine only; no auth).
   laya:
+    profiles: ["laya"]   # not started by `docker compose up` unless this profile is on
     build:
       context: https://github.com/NandhaKishorM/laya.git#v0.3.28
       args:

@@ -68,7 +68,10 @@ FER_URL = os.getenv("FER_URL", "https://github.com/onnx/models/raw/main/validate
 VIBE_MIN_SCORE = float(os.getenv("VIBE_MIN_SCORE", "0.30"))   # combined score to keep a mood
 
 # Laya (typed decisions over text, no text generation): topics + mood at ingest,
-# query intent at search. Empty LAYA_URL switches it off.
+# query intent at search. Off unless ENABLE_LAYA=1 (and LAYA_URL is set): the model
+# holds ~2.7 GB even when idle, which large-v3 needs more. Search and ingest work
+# without it; they only lose the topic boost and Laya's topics.
+ENABLE_LAYA = _bool("ENABLE_LAYA", False)
 LAYA_URL = os.getenv("LAYA_URL", "")
 LAYA_API_KEY = os.getenv("LAYA_API_KEY", "")
 LAYA_MODEL = os.getenv("LAYA_MODEL", "multilingual")       # Hindi + English; "" = let Laya route

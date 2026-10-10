@@ -146,7 +146,7 @@ def main() -> None:
         backfill_stt()
     if "--laya" in sys.argv:
         if not laya.available():
-            sys.exit("--laya needs LAYA_URL")
+            sys.exit("--laya needs ENABLE_LAYA=1 and LAYA_URL (and the laya service: docker compose --profile laya up -d laya)")
         backfill_laya()
     if "--vibe" in sys.argv:
         if not config.ENABLE_VIBE:

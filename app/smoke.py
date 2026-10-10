@@ -108,7 +108,7 @@ def main() -> int:
           f"  faces={'on' if config.ENABLE_FACES else 'off'}"
           f"  embeddings={config.EMBED_BACKEND}:{config.EMBED_MODEL}"
           f"  mood={'on' if config.ENABLE_VIBE else 'off'}"
-          f"  laya={config.LAYA_URL or 'off'}")
+          f"  laya={config.LAYA_URL if laya.available() else 'off'}")
     with db.session() as conn:
         indexed = report_clips(conn)
         broken = report_failed()
