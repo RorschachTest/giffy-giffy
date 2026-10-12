@@ -113,14 +113,22 @@ def themes() -> dict:
 
 
 @app.get("/search")
-def search(request: Request, q: str = "", limit: int = 24, offset: int = 0) -> dict:
+def search(request: Request, q: str = "", limit: int = 24, offset: int = 0, after: str = "") -> dict:
     limit, offset = max(1, min(limit, 100)), max(0, offset)
-    intent = laya.query_intent(q) if q.strip() else {}
+    browsing = not q.strip()
+    intent = {} if browsing else laya.query_intent(q)
     with db.session() as conn:
-        rows = search_mod.search(conn, q, limit, intent=intent, offset=offset, log_query=offset == 0)
-        # Browsing (empty query) pages through the whole library, so say how big it is.
-        total = conn.execute("SELECT count(*) AS n FROM clips").fetchone()["n"] if not q.strip() else None
-    return {"query": q, "intent": intent, "offset": offset, "total": total,
+        try:
+            rows = search_mod.search(conn, q, limit, intent=intent, offset=offset, after=after or None,
+                                     log_query=offset == 0 and not after)
+        except ValueError:
+            raise HTTPException(400, "bad 'after' cursor") from None
+        # Browsing pages through the whole library: say how big it is, once, on the first page.
+        first = browsing and offset == 0 and not after
+        total = conn.execute("SELECT count(*) AS n FROM clips").fetchone()["n"] if first else None
+    # `next` asks for the page after this one (keyset); None when this page is the last
+    nxt = search_mod.browse_cursor(rows[-1]) if browsing and len(rows) == limit else None
+    return {"query": q, "intent": intent, "offset": offset, "total": total, "next": nxt,
             "count": len(rows), "results": [_public(r, request) for r in rows]}
 
 

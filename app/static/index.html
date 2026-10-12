@@ -158,11 +158,41 @@ let mode = "search", lastQuery = "", editing = null, timer = null;
 // Browsing (empty search) scrolls through the whole library: PAGE clips at a time,
 // loaded when a sentinel under the grid comes within a screen of the viewport.
 const PAGE = 48;
-const browse = { loaded: 0, total: 0, busy: false };
+const browse = { loaded: 0, total: 0, next: null, busy: false };   // next: the server's cursor for the following page
 const moreObserver = ("IntersectionObserver" in window) ? new IntersectionObserver((entries) => {
   if (entries.some((e) => e.isIntersecting)) loadMore();
 }, { rootMargin: "0px 0px 100% 0px" }) : null;
 moreObserver?.observe($("sentinel"));
+
+// Cards more than ~3 screens away hand back their media (video buffer, poster, scene
+// photos) and get it back when they come near again. The card box itself stays, so the
+// layout never moves; scrolling through thousands of clips keeps memory roughly flat.
+const parker = ("IntersectionObserver" in window) ? new IntersectionObserver((entries) => {
+  for (const e of entries) (e.isIntersecting ? unpark : park)(e.target);
+}, { rootMargin: "300% 0px" }) : null;
+function park(node) {
+  if (node.dataset.parked) return;
+  const frame = node.querySelector(".frame");
+  if (frame?.classList.contains("live")) stopClip(frame);
+  for (const m of node.querySelectorAll("video, img")) {
+    for (const a of m.tagName === "VIDEO" ? ["src", "poster"] : ["src"]) {
+      const v = m.getAttribute(a);
+      if (v) { m.dataset["park" + a] = v; m.removeAttribute(a); }
+    }
+    if (m.tagName === "VIDEO") m.load();   // drops the decoded frames and buffer
+  }
+  node.dataset.parked = "1";
+}
+function unpark(node) {
+  if (!node.dataset.parked) return;
+  for (const m of node.querySelectorAll("video, img")) {
+    for (const a of ["src", "poster"]) {
+      const v = m.dataset["park" + a];
+      if (v) { m.setAttribute(a, v); delete m.dataset["park" + a]; }
+    }
+  }
+  delete node.dataset.parked;
+}
 
 async function api(path, options) {
   const res = await fetch(path, options);
@@ -449,8 +479,10 @@ function showCards(results, status, emptyTitle, emptyHelp) {
     $("grid").replaceChildren(e);
   } else {
     const cards = results.map((c, i) => card(c, i));
+    parker?.disconnect();                  // the old cards are gone
     $("grid").replaceChildren(...cards);
     reveal(cards);
+    for (const n of cards) parker?.observe(n);
     dressScenes(cards, results);
   }
   $("status").replaceChildren(...status);
@@ -478,7 +510,8 @@ async function runSearch() {
       lastQuery ? `Nothing for “${lastQuery}” yet` : "No clips yet",
       lastQuery ? "Try other words, a line from the clip, or a mood like shocked or late."
                 : "Add a clip, or drop video files into data/inbox.");
-    Object.assign(browse, { loaded: lastQuery ? 0 : data.count, total: lastQuery ? 0 : data.total || 0 });
+    Object.assign(browse, { loaded: lastQuery ? 0 : data.count, total: lastQuery ? 0 : data.total || 0,
+                            next: lastQuery ? null : data.next });
     updateMore();
     if (moreObserver && browsing() && nearBottom()) loadMore();
   } catch (e) { $("status").textContent = `Search failed: ${e.message}. Check that memeclip is running, then search again.`; }
@@ -506,11 +539,11 @@ async function runFailed() {
 const browsing = () => mode === "search" && !lastQuery;
 
 function updateMore() {
-  const left = browse.total - browse.loaded;
+  const left = Math.max(0, browse.total - browse.loaded);
   // Without IntersectionObserver the button is the way to load more.
-  $("more").hidden = !!moreObserver || !(browsing() && left > 0);
+  $("more").hidden = !!moreObserver || !(browsing() && browse.next);
   $("more").textContent = `Show more (${left} left)`;
-  $("end").hidden = !(browsing() && browse.total > 0 && left <= 0);
+  $("end").hidden = !(browsing() && browse.total > 0 && !browse.next);
   $("end").textContent = `That's all ${browse.total} clip${browse.total === 1 ? "" : "s"}`;
 }
 
@@ -520,19 +553,20 @@ function nearBottom() {
 }
 
 async function loadMore() {
-  if (browse.busy || !browsing() || browse.loaded >= browse.total) return;
+  if (browse.busy || !browsing() || !browse.next) return;
   browse.busy = true;
   $("more").disabled = true;
   try {
-    const offset = browse.loaded;
-    const data = await api(`/search?q=&limit=${PAGE}&offset=${offset}`);
-    if (mode !== "search" || lastQuery) return;          // the view changed while loading
+    const offset = browse.loaded, after = browse.next;
+    const data = await api(`/search?q=&limit=${PAGE}&after=${encodeURIComponent(after)}`);
+    if (mode !== "search" || lastQuery || browse.next !== after) return;   // the view changed while loading
     const cards = data.results.map((c, i) => card(c, offset + i));
     $("grid").append(...cards);
     reveal(cards);
+    for (const n of cards) parker?.observe(n);
     dressScenes(cards, data.results, offset);
-    browse.total = data.total ?? browse.total;
-    browse.loaded = data.count ? offset + data.count : browse.total;   // an empty page means the end
+    browse.loaded = offset + data.count;
+    browse.next = data.next;                                           // null: that was the last page
   } catch (e) {
     $("status").textContent = `Loading more failed: ${e.message}. Try again.`;
   } finally {
@@ -540,7 +574,7 @@ async function loadMore() {
     $("more").disabled = false;
     updateMore();
   }
-  if (moreObserver && browsing() && browse.loaded < browse.total && nearBottom()) loadMore();
+  if (moreObserver && browsing() && browse.next && nearBottom()) loadMore();
 }
 
 function setMode(next) {

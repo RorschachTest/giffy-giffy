@@ -80,18 +80,45 @@ SELECT {COLUMNS}, kw, sem, tm,
  LIMIT %(limit)s OFFSET %(offset)s
 """
 
+# Browsing order: most shared first. Every key DESC, so "the next page" is simply
+# "rows below the last one seen" as one row comparison, which the clips_browse index
+# answers directly (keyset paging). OFFSET would re-read every skipped row.
+BROWSE_ORDER = "(shares + duplicates_seen) DESC, first_seen DESC, id DESC"
+
 TRENDING_SQL = f"""
 SELECT {COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS tm, NULL::real AS score
   FROM clips
- ORDER BY shares + duplicates_seen DESC, first_seen DESC, id
+ ORDER BY {BROWSE_ORDER}
  LIMIT %(limit)s OFFSET %(offset)s
 """
 
+BROWSE_AFTER_SQL = f"""
+SELECT {COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS tm, NULL::real AS score
+  FROM clips
+ WHERE ((shares + duplicates_seen), first_seen, id) < (%(pop)s, %(seen)s::timestamptz, %(id)s)
+ ORDER BY {BROWSE_ORDER}
+ LIMIT %(limit)s
+"""
+
+
+def browse_cursor(row: dict) -> str:
+    """Where a browse page ended, as an opaque token for the next request."""
+    return f"{row['shares'] + row['duplicates_seen']}~{row['first_seen'].isoformat()}~{row['id']}"
+
+
+def parse_cursor(token: str) -> dict:
+    """The token back into its three keys. ValueError when it is not one of ours."""
+    pop, seen, clip_id = token.split("~")
+    from datetime import datetime
+    return {"pop": int(pop), "seen": datetime.fromisoformat(seen), "id": int(clip_id)}
+
 
 def search(conn, query: str, limit: int = 24, log_query: bool = True, intent: dict | None = None,
-           offset: int = 0) -> list[dict]:
+           offset: int = 0, after: str | None = None) -> list[dict]:
     query = (query or "").strip()
     if not query:
+        if after:   # keyset: the rows after the last one the client has
+            return conn.execute(BROWSE_AFTER_SQL, {**parse_cursor(after), "limit": limit}).fetchall()
         return conn.execute(TRENDING_SQL, {"limit": limit, "offset": offset}).fetchall()
 
     qn = normalise(query)
