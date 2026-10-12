@@ -33,6 +33,20 @@ body.docked .dock { opacity: 1; pointer-events: auto; transform: translate(-50%,
           width: 48px; height: 48px; display: grid; place-items: center; border: 0;
           opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .2s, transform .2s; }
 body.scrolled .to-top { opacity: 1; pointer-events: auto; transform: none; }
+/* narrow phones: "Add clip" shows only its + (the words stay for screen readers),
+   so the four nav items fit and the page never scrolls sideways */
+@media (max-width: 480px) {
+  #open-upload .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  #open-upload { gap: 0; padding: 4px; }
+}
+/* desktop: one row once docked: the search on the left, the nav links on the right.
+   Themes set --dock-top-wide (level with their nav) and --nav-room (space the nav needs). */
+@media (min-width: 900px) {
+  body.docked .island-wrap { justify-content: flex-end; }
+  .dock { left: var(--gutter, 16px); top: var(--dock-top-wide, var(--dock-top, 12px));
+          width: min(560px, calc(100% - var(--nav-room, 420px))); transform: translateY(-10px); }
+  body.docked .dock { transform: none; }
+}
 
 /* buttons: label + knob (the knob holds the icon) */
 .cta { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px;
