@@ -3,7 +3,8 @@
     GET   /                     the page, in the theme set by UI_THEME (?theme=<name> to preview)
     GET   /themes               the available themes
     GET   /legal                where the clips and data come from, removal requests
-    GET   /search?q=...         hybrid search (empty q = trending); `intent` is Laya's reading
+    GET   /search?q=...         hybrid search (empty q = the whole library, most shared first;
+                                &offset= pages through it); `intent` is Laya's reading
     POST  /clips/{id}/share     count a share and learn the query that led to it
     GET   /clips/{id}           everything we know about one clip
     PATCH /clips/{id}           correct or add facts by hand
@@ -112,12 +113,14 @@ def themes() -> dict:
 
 
 @app.get("/search")
-def search(request: Request, q: str = "", limit: int = 24) -> dict:
-    limit = max(1, min(limit, 100))
+def search(request: Request, q: str = "", limit: int = 24, offset: int = 0) -> dict:
+    limit, offset = max(1, min(limit, 100)), max(0, offset)
     intent = laya.query_intent(q) if q.strip() else {}
     with db.session() as conn:
-        rows = search_mod.search(conn, q, limit, intent=intent)
-    return {"query": q, "intent": intent,
+        rows = search_mod.search(conn, q, limit, intent=intent, offset=offset, log_query=offset == 0)
+        # Browsing (empty query) pages through the whole library, so say how big it is.
+        total = conn.execute("SELECT count(*) AS n FROM clips").fetchone()["n"] if not q.strip() else None
+    return {"query": q, "intent": intent, "offset": offset, "total": total,
             "count": len(rows), "results": [_public(r, request) for r in rows]}
 
 

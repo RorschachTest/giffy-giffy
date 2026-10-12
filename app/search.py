@@ -77,21 +77,22 @@ SELECT {COLUMNS}, kw, sem, tm,
   FROM scored
  WHERE kw >= %(min_kw)s OR sem >= %(min_sem)s OR tm >= %(min_tm)s
  ORDER BY score DESC, id
- LIMIT %(limit)s
+ LIMIT %(limit)s OFFSET %(offset)s
 """
 
 TRENDING_SQL = f"""
 SELECT {COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS tm, NULL::real AS score
   FROM clips
- ORDER BY shares + duplicates_seen DESC, first_seen DESC
- LIMIT %(limit)s
+ ORDER BY shares + duplicates_seen DESC, first_seen DESC, id
+ LIMIT %(limit)s OFFSET %(offset)s
 """
 
 
-def search(conn, query: str, limit: int = 24, log_query: bool = True, intent: dict | None = None) -> list[dict]:
+def search(conn, query: str, limit: int = 24, log_query: bool = True, intent: dict | None = None,
+           offset: int = 0) -> list[dict]:
     query = (query or "").strip()
     if not query:
-        return conn.execute(TRENDING_SQL, {"limit": limit}).fetchall()
+        return conn.execute(TRENDING_SQL, {"limit": limit, "offset": offset}).fetchall()
 
     qn = normalise(query)
     if not qn:  # emoji-only or punctuation-only query
@@ -106,7 +107,7 @@ def search(conn, query: str, limit: int = 24, log_query: bool = True, intent: di
         "wk": config.W_KEYWORD, "ws": config.W_SEMANTIC, "wt": config.W_TOPIC,
         "wp": config.W_POPULARITY, "learn": 1 if config.LEARN_FROM_SHARES else 0,
         "min_kw": config.MIN_KEYWORD, "min_sem": config.MIN_SEMANTIC,
-        "min_tm": config.MIN_TOPIC, "limit": limit,
+        "min_tm": config.MIN_TOPIC, "limit": limit, "offset": offset,
     }).fetchall()
     if log_query:
         conn.execute(

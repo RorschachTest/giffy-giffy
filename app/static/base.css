@@ -91,6 +91,10 @@ body.curate .curate-only { display: flex; }
 .reveal.in { opacity: 1; transform: none; filter: none; }
 
 .empty { grid-column: 1 / -1; text-align: center; }
+.more { display: flex; flex-direction: column; align-items: center; margin: 32px 16px 48px; }
+.more [hidden] { display: none; }
+#sentinel { width: 100%; height: 1px; }
+.end { margin: 0; color: var(--text-3, inherit); font-size: 14px; }
 .empty strong { display: block; }
 
 /* tables and dialogs */
