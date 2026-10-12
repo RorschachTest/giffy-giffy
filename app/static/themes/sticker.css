@@ -44,7 +44,9 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
           border: 1px solid var(--hair); backdrop-filter: blur(24px) saturate(140%); -webkit-backdrop-filter: blur(24px) saturate(140%);
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); max-width: calc(100vw - 32px); }
 .wordmark { font-weight: 600; letter-spacing: -.03em; font-size: 16px; margin-right: 10px; }
-:root { --dock-top: calc(96px + env(safe-area-inset-top)); }   /* just under the floating island */
+:root { --dock-top: calc(96px + env(safe-area-inset-top));      /* phones: just under the floating island */
+        --dock-top-wide: calc(32px + env(safe-area-inset-top)); /* desktop: level with it, on its left */
+        --nav-room: 470px; }  /* island ~400px + its right margin + a gap */
 .dock .core { background: var(--cream); color: #121212; border-radius: 999px; border: 1px solid var(--hair);
               box-shadow: 0 12px 32px rgba(0, 0, 0, .45); }
 .dock svg { color: #6b6560; }
