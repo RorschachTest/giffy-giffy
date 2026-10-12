@@ -18,12 +18,21 @@
 <div class="stage">
 <div class="island-wrap">
   <nav class="island" aria-label="memeclip">
-    <span class="wordmark" translate="no">memeclip</span>
+    <a class="wordmark" id="home" href="/" translate="no" aria-label="memeclip home">memeclip</a>
     <a class="cta ghost" href="/legal">Legal</a>
     <button id="curate" class="cta ghost" type="button" aria-pressed="false">Curate</button>
     <button id="open-upload" class="cta light" type="button"><span class="lbl">Add clip</span><span class="knob"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span></button>
   </nav>
 </div>
+<!-- the search, docked under the nav once the big one scrolls away (kept in sync) -->
+<div class="dock" id="dock" aria-hidden="true">
+  <div class="core">
+    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <label for="q2" class="sr">Search memes</label>
+    <input id="q2" type="search" placeholder="Search memes…" autocomplete="off" spellcheck="false" enterkeyhint="search" tabindex="-1">
+  </div>
+</div>
+<button id="to-top" class="to-top" type="button" aria-label="Back to top" tabindex="-1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></button>
 
 <main>
   <section class="hero">
@@ -547,6 +556,36 @@ $("curate").onclick = () => setCurate(!document.body.classList.contains("curate"
 for (const b of document.querySelectorAll("[data-close]")) b.onclick = () => b.closest("dialog").close();
 for (const m of ["search", "review", "failed"]) $("tab-" + m).onclick = () => setMode(m);
 $("q").oninput = () => { clearTimeout(timer); timer = setTimeout(() => setMode("search"), 350); };
+const smooth = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+// Home: the wordmark goes back to the start (trending, no search, not curating) without a reload
+$("home").onclick = (e) => {
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;   // new tab / window still works
+  e.preventDefault();
+  $("q").value = $("q2").value = "";
+  scrollTo({ top: 0, behavior: smooth() });
+  if (document.body.classList.contains("curate")) setCurate(false); else setMode("search");
+};
+// Docked search: shown once the big search box has scrolled up out of view
+new IntersectionObserver(([e]) => {
+  const on = !e.isIntersecting && e.boundingClientRect.top < 0;
+  if (on === document.body.classList.contains("docked")) return;
+  document.body.classList.toggle("docked", on);
+  $("dock").setAttribute("aria-hidden", String(!on));
+  $("q2").tabIndex = on ? 0 : -1;
+  if (on) $("q2").value = $("q").value;
+  else if (document.activeElement === $("q2")) $("q").focus({ preventScroll: true });
+}).observe(document.querySelector(".hero .search"));
+$("q2").oninput = () => { $("q").value = $("q2").value; $("q").oninput(); };
+// Back to top, after about a screen and a half
+addEventListener("scroll", () => {
+  const on = scrollY > innerHeight * 1.5;
+  document.body.classList.toggle("scrolled", on);
+  $("to-top").tabIndex = on ? 0 : -1;
+}, { passive: true });
+$("to-top").onclick = () => {
+  scrollTo({ top: 0, behavior: smooth() });
+  if (matchMedia("(pointer: fine)").matches) $("q").focus({ preventScroll: true });   // no keyboard pop-up on phones
+};
 // #curate in the address opens the curation view (also when only the # part changes)
 const curateFromHash = () => {
   const on = location.hash === "#curate";
