@@ -279,6 +279,17 @@ def test_13_api():
         assert client.get("/search", params={"q": "", "offset": n}).json()["count"] == 0
         assert client.get("/search", params={"q": "rasode"}).json()["total"] is None
 
+        # keyset paging: follow `next` one clip at a time; same order, every clip once
+        walked, page = [], client.get("/search", params={"q": "", "limit": 1}).json()
+        while True:
+            walked += [c["id"] for c in page["results"]]
+            if not page["next"]:
+                break
+            page = client.get("/search", params={"q": "", "limit": 1, "after": page["next"]}).json()
+            assert page["total"] is None                                  # counted on the first page only
+        assert walked == ids
+        assert client.get("/search", params={"q": "", "after": "nonsense"}).status_code == 400
+
         video = make_clip("upload.mp4", "rgbtestsrc", seconds=2)
         with video.open("rb") as f:
             r = client.post("/upload", files={"file": ("my clip!.mp4", f, "video/mp4")},

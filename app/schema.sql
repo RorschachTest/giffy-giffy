@@ -67,6 +67,8 @@ ALTER TABLE clips ADD COLUMN IF NOT EXISTS topics TEXT[] NOT NULL DEFAULT '{}';
 CREATE INDEX IF NOT EXISTS clips_topics ON clips USING gin (topics);
 -- share links are /c/<first 10 hex of sha256> (app/share.py)
 CREATE INDEX IF NOT EXISTS clips_share_id ON clips (left(sha256, 10));
+-- browsing order (app/search.py BROWSE_ORDER): keyset paging reads straight from it
+CREATE INDEX IF NOT EXISTS clips_browse ON clips ((shares + duplicates_seen) DESC, first_seen DESC, id DESC);
 CREATE INDEX IF NOT EXISTS clips_s_names_trgm   ON clips USING gin (s_names gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS clips_s_said_trgm    ON clips USING gin (s_said gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS clips_s_people_trgm  ON clips USING gin (s_people gin_trgm_ops);
