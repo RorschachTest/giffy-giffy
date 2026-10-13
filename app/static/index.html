@@ -618,9 +618,32 @@ async function runFaces() {
 
 async function openFaces({ person, group }) {
   const data = await api(person ? `/faces/clips?person_id=${person.id}` : `/faces/clips?face_ids=${group.face_ids.join(",")}`);
-  showCards(data.results, [el("span", "", person ? `${person.name} · ${data.count} clip${data.count === 1 ? "" : "s"}`
-                                               : `${data.count} clip${data.count === 1 ? "" : "s"} with this face`)],
+  showCards(data.results, [el("span", "", person
+              ? `${person.name} · ${data.count} clip${data.count === 1 ? "" : "s"}` +
+                (data.unsure ? ` · ${data.unsure} unsure, shown first: remove the ones that are not ${person.name}` : "")
+              : `${data.count} clip${data.count === 1 ? "" : "s"} with this face`)],
             "No clips", "These faces have no clips any more.");
+  if (person) {
+    // audit: every clip can be taken off this person; the unsure ones are first and marked
+    const cards = [...$("grid").querySelectorAll(".card")];
+    data.results.forEach((c, i) => {
+      const n = cards[i];
+      if (!n) return;
+      const row = el("div", "face-check");
+      if (c.unsure) row.append(el("span", "chip warn", `unsure match · ${Math.round(c.face_score * 100)}%`));
+      const no = el("button", "cta ghost", `Not ${person.name}`); no.type = "button";
+      no.onclick = async () => {
+        no.disabled = true;
+        try {
+          await api(`/people/${person.id}/remove`, { method: "POST", headers: { "Content-Type": "application/json" },
+                                                     body: JSON.stringify({ clip_id: c.id }) });
+          n.remove();
+        } catch (err) { no.disabled = false; no.textContent = `Could not remove: ${err.message}`; }
+      };
+      row.append(no);
+      (n.querySelector(".core") || n).append(row);
+    });
+  }
   const form = el("form", "face-form");
   const back = el("button", "cta ghost", "← All faces"); back.type = "button";
   back.onclick = () => { form.remove(); runFaces(); };

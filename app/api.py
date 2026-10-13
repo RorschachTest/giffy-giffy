@@ -242,14 +242,33 @@ def face_clips(request: Request, face_ids: str = "", person_id: int | None = Non
     if not ids and person_id is None:
         raise HTTPException(400, "give face_ids or person_id")
     with db.session() as conn:
-        rows = conn.execute(
-            f"""SELECT {search_mod.COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS score
-                  FROM clips WHERE duplicate_of IS NULL AND id IN (SELECT clip_id FROM clip_faces
-                                           WHERE id = ANY(%(ids)s) OR person_id = %(pid)s)
-                 ORDER BY {search_mod.BROWSE_ORDER}""",
-            {"ids": ids, "pid": person_id},
-        ).fetchall()
-    return {"count": len(rows), "results": [_public(r, request) for r in rows]}
+        if person_id is not None:
+            # a person's clips, least sure first: the ones worth checking come up top
+            rows = conn.execute(
+                f"""SELECT {search_mod.COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS score,
+                           m.face_score
+                      FROM clips JOIN (SELECT clip_id, max(score) AS face_score FROM clip_faces
+                                        WHERE person_id = %(pid)s GROUP BY clip_id) m ON m.clip_id = clips.id
+                     WHERE duplicate_of IS NULL
+                     ORDER BY m.face_score, {search_mod.BROWSE_ORDER}""",
+                {"pid": person_id},
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                f"""SELECT {search_mod.COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS score,
+                           NULL::real AS face_score
+                      FROM clips WHERE duplicate_of IS NULL
+                       AND id IN (SELECT clip_id FROM clip_faces WHERE id = ANY(%(ids)s))
+                     ORDER BY {search_mod.BROWSE_ORDER}""",
+                {"ids": ids},
+            ).fetchall()
+    out = []
+    for r in rows:
+        item = _public(r, request)
+        item["face_score"] = round(float(r["face_score"]), 3) if r["face_score"] is not None else None
+        item["unsure"] = r["face_score"] is not None and r["face_score"] < config.FACE_UNSURE_BELOW
+        out.append(item)
+    return {"count": len(out), "unsure": sum(1 for o in out if o["unsure"]), "results": out}
 
 
 class NameFacesBody(BaseModel):
@@ -269,6 +288,22 @@ def name_face_group(body: NameFacesBody) -> dict:
         for clip_id in changed:
             indexing.refresh(conn, clip_id, embed=False)
     return {"person_id": person_id, "name": body.name.strip(), "clips_updated": len(changed)}
+
+
+class RemovePersonBody(BaseModel):
+    clip_id: int
+
+
+@app.post("/people/{person_id}/remove")
+def remove_person_from_clip(person_id: int, body: RemovePersonBody) -> dict:
+    """"Not them": the person's name leaves this clip and is never matched back to its faces."""
+    with db.session() as conn:
+        try:
+            name = faces.remove_person(conn, person_id, body.clip_id)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from None
+        indexing.refresh(conn, body.clip_id, embed=False)
+    return {"person_id": person_id, "name": name, "clip_id": body.clip_id}
 
 
 class AliasesBody(BaseModel):

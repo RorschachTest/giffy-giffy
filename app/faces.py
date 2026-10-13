@@ -125,14 +125,16 @@ def sync_gallery(conn, engine: FaceEngine | None, root: Path | None = None) -> d
 # Matching
 # --------------------------------------------------------------------------- #
 
-def match_embedding(conn, embedding: list[float]) -> dict | None:
-    """Nearest known person for one face, or None if nobody is close enough."""
+def match_embedding(conn, embedding: list[float], rejected: list[int] | None = None) -> dict | None:
+    """Nearest known person for one face, or None if nobody is close enough. People in
+    `rejected` (a person said "not them" for this face) are never the answer."""
     row = conn.execute(
         """SELECT p.id AS person_id, p.name, 1 - (r.embedding <=> %(e)s::vector) AS score
              FROM face_refs r JOIN people p ON p.id = r.person_id
+            WHERE r.person_id <> ALL(%(rej)s::bigint[])
             ORDER BY r.embedding <=> %(e)s::vector
             LIMIT 1""",
-        {"e": vec(embedding)},
+        {"e": vec(embedding), "rej": rejected or []},
     ).fetchone()
     if row and row["score"] >= config.FACE_MATCH_THRESHOLD:
         return row
@@ -275,17 +277,20 @@ def unknown_clusters(conn, threshold: float = 0.5) -> list[dict]:
     ]
 
 
-def face_groups(conn, threshold: float | None = None) -> list[dict]:
+def face_groups(conn, threshold: float | None = None, neighbours: int | None = None) -> list[dict]:
     """Unknown faces grouped into probable people, like a photo app's "People".
 
-    Greedy and quick: each face joins the closest group whose AVERAGE face is within
-    `threshold`, and that average moves as faces join (so a group follows its
-    person instead of its first photo). The same person can still end up as two
-    groups; naming both with one name merges them (name_faces).
+    Mutual nearest neighbours: two faces are linked only when each is among the
+    other's `neighbours` closest faces and they are at least `threshold` alike; groups
+    are the linked components. Unlike one greedy pass this does not depend on the order
+    faces arrive in, and a blurred "average-looking" face cannot glue different people
+    together (it is everyone's neighbour, but few faces are its mutual ones). The same
+    person can still end up as two groups; naming both with one name merges them.
     """
     import numpy as np
 
     threshold = config.FACE_GROUP_THRESHOLD if threshold is None else threshold
+    k = config.FACE_GROUP_NEIGHBOURS if neighbours is None else neighbours
     rows = conn.execute(
         """SELECT f.id, f.clip_id, f.crop, f.embedding::text AS e
              FROM clip_faces f JOIN clips c ON c.id = f.clip_id
@@ -295,32 +300,58 @@ def face_groups(conn, threshold: float | None = None) -> list[dict]:
         return []
     vecs = np.array([_parse_vec(r["e"]) for r in rows], dtype=np.float32)
     vecs /= np.linalg.norm(vecs, axis=1, keepdims=True) + 1e-9
-    sums: list[np.ndarray] = []      # running sum per group; its direction is the average face
-    members: list[list[int]] = []
-    centres = np.zeros((0, vecs.shape[1]), dtype=np.float32)
-    for i, v in enumerate(vecs):
-        if len(sums):
-            sims = centres @ v
-            best = int(sims.argmax())
-            if sims[best] >= threshold:
-                members[best].append(i)
-                sums[best] += v
-                centres[best] = sums[best] / (np.linalg.norm(sums[best]) + 1e-9)
-                continue
-        sums.append(v.copy())
-        members.append([i])
-        centres = np.vstack([centres, v])
+    n, k = len(vecs), max(1, min(k, len(vecs) - 1))
+    near = [set() for _ in range(n)]                     # each face's close-enough nearest neighbours
+    for start in range(0, n, 1024):                      # in blocks: never the whole n x n matrix
+        sims = vecs[start:start + 1024] @ vecs.T
+        for i in range(sims.shape[0]):
+            sims[i, start + i] = -1.0                    # not its own neighbour
+        if n > 1:
+            idx = np.argpartition(-sims, k - 1, axis=1)[:, :k]
+            for i, js in enumerate(idx):
+                near[start + i] = {int(j) for j in js if sims[i, j] >= threshold}
+    parent = list(range(n))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for i in range(n):
+        for j in near[i]:
+            if i in near[j]:                             # mutual
+                parent[find(i)] = find(j)
+    members: dict[int, list[int]] = defaultdict(list)
+    for i in range(n):
+        members[find(i)].append(i)
     groups = []
-    for idx in members:
+    for idx in members.values():
         faces_ = [rows[i] for i in idx]
-        clips = sorted({f["clip_id"] for f in faces_})
         groups.append({
             "id": faces_[0]["id"],
             "face_ids": [f["id"] for f in faces_],
-            "clips": clips,
+            "clips": sorted({f["clip_id"] for f in faces_}),
             "crops": [f["crop"] for f in faces_ if f["crop"]][:4],
         })
-    return sorted(groups, key=lambda g: (-len(g["clips"]), -len(g["face_ids"])))
+    return sorted(groups, key=lambda g: (-len(g["clips"]), -len(g["face_ids"]), g["id"]))
+
+
+def remove_person(conn, person_id: int, clip_id: int) -> str:
+    """A person said this clip does not show `person_id`: their faces in it go back to
+    unknown, remember the "no" (automatic matching never re-adds that person to them),
+    and the name leaves the clip. Returns the person's name."""
+    name = conn.execute("SELECT name FROM people WHERE id = %s", (person_id,)).fetchone()
+    if name is None:
+        raise ValueError(f"no person with id {person_id}")
+    conn.execute(
+        """UPDATE clip_faces SET person_id = NULL, score = NULL,
+                  rejected = ARRAY(SELECT DISTINCT unnest(rejected || ARRAY[%(p)s]::bigint[]))
+            WHERE clip_id = %(c)s AND person_id = %(p)s""", {"p": person_id, "c": clip_id})
+    conn.execute("DELETE FROM face_refs WHERE person_id = %s AND source IN "
+                 "(SELECT 'clip_face:' || id FROM clip_faces WHERE clip_id = %s)", (person_id, clip_id))
+    conn.execute("UPDATE clips SET people = array_remove(people, %s) WHERE id = %s", (name["name"], clip_id))
+    return name["name"]
 
 
 def known_people(conn) -> list[dict]:
@@ -401,11 +432,11 @@ def rematch_unknown(conn) -> list[int]:
     Run after adding people or photos, so old clips pick up the new names.
     """
     rows = conn.execute(
-        "SELECT id, clip_id, embedding::text AS e FROM clip_faces WHERE person_id IS NULL"
+        "SELECT id, clip_id, rejected, embedding::text AS e FROM clip_faces WHERE person_id IS NULL"
     ).fetchall()
     gained: dict[int, set[str]] = defaultdict(set)
     for r in rows:
-        hit = match_embedding(conn, _parse_vec(r["e"]))
+        hit = match_embedding(conn, _parse_vec(r["e"]), r["rejected"])
         if not hit:
             continue
         conn.execute("UPDATE clip_faces SET person_id = %s, score = %s WHERE id = %s",

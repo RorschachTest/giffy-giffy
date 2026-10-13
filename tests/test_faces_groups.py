@@ -70,3 +70,23 @@ def test_aliases_reach_search_text(two_strangers):
             indexing.refresh(conn, c, embed=False)
         s = conn.execute("SELECT s_people FROM clips WHERE id = %s", (two_strangers[0],)).fetchone()["s_people"]
     assert "pm" in s and "modi ji" in s
+
+
+def test_not_this_person_sticks(two_strangers):
+    with db.session() as conn:
+        g1 = faces.face_groups(conn)[0]
+        person_id, _ = faces.name_faces(conn, g1["face_ids"], "Narendra Modi")
+        clip = two_strangers[0]
+        assert faces.remove_person(conn, person_id, clip) == "Narendra Modi"
+        assert "Narendra Modi" not in conn.execute("SELECT people FROM clips WHERE id = %s", (clip,)).fetchone()["people"]
+        faces.rematch_unknown(conn)                     # the "no" holds: not matched back
+        back = conn.execute("SELECT count(*) AS n FROM clip_faces WHERE clip_id = %s AND person_id = %s",
+                            (clip, person_id)).fetchone()["n"]
+        assert back == 0
+
+
+def test_grouping_does_not_depend_on_order(two_strangers):
+    with db.session() as conn:
+        first = faces.face_groups(conn)
+        again = faces.face_groups(conn)
+    assert [sorted(g["face_ids"]) for g in first] == [sorted(g["face_ids"]) for g in again]
