@@ -23,6 +23,7 @@ os.environ["LAYA_URL"] = ""   # tests that need Laya start a fake one
 os.environ["ENABLE_LAYA"] = "1"   # the switch is on in tests; an empty LAYA_URL still means off
 os.environ["PUBLIC_BASE_URL"] = ""   # links use the test server, not the real domain in .env
 os.environ["STORAGE"] = "local"    # tests never talk to the real bucket
+os.environ.setdefault("FACE_GROUP_THRESHOLD", "0.6")
 os.environ.setdefault("DATA_DIR", tempfile.mkdtemp(prefix="memeclip_test_data_"))
 os.environ.setdefault("MODELS_DIR", tempfile.mkdtemp(prefix="memeclip_test_models_"))
 if os.getenv("TEST_DATABASE_URL"):

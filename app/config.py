@@ -86,6 +86,10 @@ ENABLE_FACES = _bool("ENABLE_FACES", True)
 FACE_MODEL = os.getenv("FACE_MODEL", "buffalo_l")
 FACE_DIM = 512
 FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.42"))  # cosine similarity
+# Curate > Faces groups unknown faces by similarity to a group's average face. Higher =
+# purer groups but one person split into more of them (naming them alike merges them).
+# 0.6 measured on 2.5k clips: top groups >= 89% one person by title; 0.5 mixed people.
+FACE_GROUP_THRESHOLD = float(os.getenv("FACE_GROUP_THRESHOLD", "0.6"))
 FACE_MIN_DET_SCORE = float(os.getenv("FACE_MIN_DET_SCORE", "0.6"))
 FACE_MIN_SIZE = int(os.getenv("FACE_MIN_SIZE", "40"))                     # pixels
 

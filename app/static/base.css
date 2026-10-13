@@ -137,3 +137,20 @@ input[type=text], textarea, input[type=file] { width: 100%; outline: none; }
   .reveal { opacity: 1; transform: none; filter: none; }
   .card, .card:hover, .card:focus-within, .stick, .card:hover .stick, .frame:not(.scene) video { transform: none !important; }
 }
+
+/* Curate > Faces: round face tiles, then a naming bar above a group's clips */
+.faces { display: grid; gap: 12px; }
+.faces-head { margin: 8px 0 0; font-size: 15px; font-weight: 600; color: var(--text-2, inherit); }
+.face-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 16px 12px; }
+.face-tile { display: grid; justify-items: center; gap: 4px; padding: 8px 4px; border: 0; background: none; border-radius: 16px; }
+.face-tile:hover { background: var(--tray, rgba(255, 255, 255, .05)); }
+.face-pic { width: 88px; height: 88px; border-radius: 50%; overflow: hidden; background: var(--core, #222);
+            border: 1px solid var(--hair, rgba(255, 255, 255, .12)); }
+.face-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.face-name { font-weight: 600; font-size: 14px; text-align: center; overflow-wrap: anywhere; }
+.face-sub { font-size: 12px; color: var(--text-3, inherit); }
+.face-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.face-form input[type=text] { flex: 1 1 220px; min-height: 44px; padding: 0 14px; border-radius: 999px;
+                              border: 1px solid var(--hair, rgba(255, 255, 255, .16)); background: var(--core, #111); }
+.face-form input:disabled { opacity: .7; }
+.face-msg { flex-basis: 100%; font-size: 13px; color: var(--text-2, inherit); min-height: 1.2em; }

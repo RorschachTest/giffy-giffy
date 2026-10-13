@@ -245,7 +245,8 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
             if config.ENABLE_FACES:
                 engine = faces.get_engine()
                 detected = [engine.detect(f) for f in frames]
-                seen = faces.record_faces(conn, clip_id, detected)
+                seen = faces.record_faces(conn, clip_id, detected, frames)
+                stored.extend(seen["crops"])   # face pictures: removed again if the clip fails
                 raw["faces"] = {"faces": seen["faces"], "unknown": seen["unknown"],
                                 "matched": {k: round(v, 3) for k, v in seen["people"].items()}}
                 for name, score in seen["people"].items():

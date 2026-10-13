@@ -8,6 +8,8 @@
                                        recompute mood on every clip, overwriting hand edits too
     python -m app.reindex --roman      first rebuild the Roman transcript from the stored Devanagari
                                        (after changing text.to_roman or the loanwords in hinglish.py)
+    python -m app.reindex --face-crops first save a picture of every stored face that has none
+                                       (for Curate > Faces); re-detects on the clip's keyframes
     python -m app.reindex --stt        first re-run speech to text on every clip with audio
                                        (not typed sidecar transcripts); then --laya is worth a rerun
 
@@ -28,6 +30,45 @@ def _report_failed(step: str, failed: list[int], total: int) -> None:
     if failed:
         print(f"{step}: {len(failed)} of {total} clip(s) skipped (ids {failed}); fix the cause and run again",
               file=sys.stderr)
+
+
+FACE_MATCH_FOR_CROP = 0.8   # a re-detected face this close to a stored one is the same face
+
+
+def backfill_face_crops() -> None:
+    """Pictures for faces stored before crops existed. Faces are detected again on the
+    clip's keyframes and each detection is paired with the stored face it matches."""
+    import numpy as np
+
+    with db.session() as conn:
+        clip_ids = [r["clip_id"] for r in conn.execute(
+            "SELECT DISTINCT clip_id FROM clip_faces WHERE crop IS NULL ORDER BY clip_id").fetchall()]
+    engine = faces.get_engine()
+    done = 0
+    failed = []
+    for n, clip_id in enumerate(clip_ids, 1):
+        try:
+            with db.session() as conn:
+                clip = conn.execute("SELECT file, duration FROM clips WHERE id = %s", (clip_id,)).fetchone()
+                stored_faces = conn.execute(
+                    "SELECT id, frame, embedding::text AS e FROM clip_faces WHERE clip_id = %s AND crop IS NULL",
+                    (clip_id,)).fetchall()
+                with tempfile.TemporaryDirectory(prefix="memeclip_") as tmp, storage.local_copy(clip["file"]) as f:
+                    frames = media.extract_keyframes(f, Path(tmp), clip["duration"], config.KEYFRAMES)
+                    found = [(i, d) for i, fr in enumerate(frames) for d in engine.detect(fr)]
+                    for row in stored_faces:
+                        target = np.array(faces._parse_vec(row["e"]), dtype=np.float32)
+                        best = max(found, default=None,
+                                   key=lambda fd: (fd[0] == row["frame"], float(np.dot(target, fd[1]["embedding"]))))
+                        if best and float(np.dot(target, best[1]["embedding"])) >= FACE_MATCH_FOR_CROP:
+                            if faces.save_crop(conn, row["id"], frames[best[0]], best[1]["bbox"]):
+                                done += 1
+        except Exception as exc:   # one bad clip must not stop the rest
+            failed.append(clip_id)
+            print(f"face-crops: clip {clip_id} SKIPPED: {exc}", file=sys.stderr)
+        if n % 25 == 0 or n == len(clip_ids):
+            print(f"face-crops: {n}/{len(clip_ids)} clips, {done} pictures saved")
+    _report_failed("face-crops", failed, len(clip_ids))
 
 
 def backfill_roman() -> None:
@@ -140,6 +181,10 @@ def main() -> None:
     db.init_db()
     if "--roman" in sys.argv:
         backfill_roman()
+    if "--face-crops" in sys.argv:
+        if not config.ENABLE_FACES:
+            sys.exit("--face-crops needs ENABLE_FACES=1")
+        backfill_face_crops()
     if "--stt" in sys.argv:
         if not config.ENABLE_STT:
             sys.exit("--stt needs ENABLE_STT=1")
