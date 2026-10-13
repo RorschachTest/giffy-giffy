@@ -274,7 +274,9 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
             # --- mood: only fills what the sidecar left empty --------------------
             if config.ENABLE_VIBE:
                 try:
-                    found = vibe.analyse(frames, detected, native, text_moods)
+                    found = vibe.analyse(frames, detected, native, text_moods,
+                                         words=vibe.clip_text({**meta, "transcript_native": native,
+                                                               "transcript_roman": roman}))
                     raw["vibe"] = found["scores"]
                     filled = vibe.fill_missing({k: meta[k] for k in found["fields"]}, found["fields"])
                     conn.execute(

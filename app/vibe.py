@@ -49,6 +49,37 @@ MOODS: dict[str, tuple[str, list[str]]] = {
 
 W_FACES, W_SCENE, W_DIALOGUE = 0.45, 0.40, 0.15
 W_DIALOGUE_LAYA = 0.30   # Laya reads title + dialogue together, so it earns more weight
+# When the clip has words (title, caption, speech) they carry the message, so they lead.
+# Faces count less: a talking mouth reads as "surprise" to the expression model, which
+# put "shocked" on 31% of the library.
+W_TEXT_LED = {"faces": 0.20, "scene": 0.30, "text": 0.50}
+MOOD_MIN_TOP = 0.30      # the best mood must reach this, or the clip gets no mood at all
+MOOD_NEAR_TOP = 0.10     # a second mood is kept only this close to the best one
+MOOD_LIMIT = 2
+
+# What people SAY or MEAN with each mood, in English and Devanagari Hindi: the text signal
+# is compared with these, not with descriptions of a picture. Devanagari, not romanised
+# Hindi: the embedding model understands Hindi in its own script (measured: "who are
+# these people" vs "कौन हैं ये लोग" 0.84 / vs "very happy" 0.05) but romanised Hindi only by
+# shared filler words ("kaun hai ye log" was closer to "bahut khush hoon" than to itself).
+MOOD_PHRASES: dict[str, list[str]] = {
+    "happy":     ["I am so happy", "this is great news", "बहुत खुश हूँ", "मज़ा आ गया", "क्या बात है"],
+    "laughing":  ["that is hilarious", "I can't stop laughing", "हँसी नहीं रुक रही", "बहुत मज़ेदार है"],
+    "shocked":   ["what just happened", "I can't believe it", "ये क्या हो गया", "अरे बाप रे", "हैरान रह गया"],
+    "sad":       ["I feel so sad", "everything went wrong", "दिल टूट गया", "बहुत दुख हुआ", "बहुत दुखद"],
+    "angry":     ["I am so angry", "get out of here", "दिमाग खराब मत कर", "चुप कर", "निकल यहाँ से"],
+    "scared":    ["I am scared", "we are in big trouble", "डर लग रहा है", "अब क्या होगा", "भागो"],
+    "disgusted": ["that is gross", "so cringe", "छी कितना गंदा", "घटिया", "disgusting"],
+    "smug":      ["I told you so", "who is the boss now", "जलवा है हमारा", "देखा मैंने कहा था", "हमसे बड़ा कोई नहीं"],
+    "confused":  ["what is going on", "who are these people", "कौन हैं ये लोग", "ये क्या हो रहा है",
+                  "कुछ समझ नहीं आया", "क्या करूँ मैं"],
+    "helpless":  ["there is nothing I can do", "I give up", "मैं क्या कर सकता हूँ", "अब कुछ नहीं हो सकता",
+                  "मजबूर हूँ"],
+    "in a hurry": ["I am late", "hurry up", "जल्दी चलो", "बहुत तेज़ हो रहा है", "देर हो गई"],
+    "dancing":   ["let's party", "we won, celebrate", "नाचो", "पार्टी तो बनती है", "जश्न मनाओ"],
+    "preachy":   ["listen to my advice", "let me explain life to you", "मेरी बात सुनो", "ज़िंदगी का फंडा",
+                  "तुम्हें समझना चाहिए"],
+}
 
 
 # --------------------------------------------------------------------------- #
@@ -139,6 +170,81 @@ def pick(scores: dict[str, float], limit: int = 3) -> list[str]:
     return [m for _, m in reversed(ranked)][:limit]
 
 
+def pick_confident(scores: dict[str, float]) -> list[str]:
+    """At most MOOD_LIMIT moods, and none when the best is weak: no sticker beats a wrong one."""
+    ranked = sorted(((s, m) for m, s in scores.items()), reverse=True)
+    if not ranked or ranked[0][0] < MOOD_MIN_TOP:
+        return []
+    top = ranked[0][0]
+    return [m for s, m in ranked if s >= max(config.VIBE_MIN_SCORE, top - MOOD_NEAR_TOP)][:MOOD_LIMIT]
+
+
+@lru_cache(maxsize=1)
+def _phrase_vectors() -> dict[str, list[list[float]]]:
+    from .embed import embed_one
+    return {m: [embed_one(p) for p in ps] for m, ps in MOOD_PHRASES.items()}
+
+
+def text_scores(text: str) -> dict[str, float]:
+    """How strongly the clip's words say each mood: best match against MOOD_PHRASES,
+    sharpened so one clear mood stands out, scaled by how close that best match is."""
+    if not (text or "").strip():
+        return {}
+    from .embed import embed_one
+
+    v = embed_one(text)
+    best = {m: max(sum(a * b for a, b in zip(v, p)) for p in ps) for m, ps in _phrase_vectors().items()}
+    probs = softmax(list(best.values()), scale=20.0)
+    top = max(probs) or 1.0
+    strength = max(0.0, min(1.0, (max(best.values()) - 0.2) / 0.5))   # 0.2 = unrelated, 0.7 = same meaning
+    return {m: round(p / top * strength, 3) for m, p in zip(best, probs)}
+
+
+def decisive(scores: dict[str, float]) -> dict[str, float]:
+    """Scale scores by how decisive they are. Scene scores come scaled so the top mood
+    is always 1.0, even when the picture model cannot decide (sad 1.0, helpless 0.87,
+    confused 0.86): the gap between the best two is the real confidence."""
+    if not scores:
+        return {}
+    ranked = sorted(scores.values(), reverse=True)
+    if ranked[0] <= 0:
+        return {}
+    gap = 1.0 - (ranked[1] / ranked[0] if len(ranked) > 1 else 0.0)
+    return {m: round(s * gap, 3) for m, s in scores.items()}
+
+
+def combine_text_led(face: dict[str, float], scene: dict[str, float], text: dict[str, float]) -> dict[str, float]:
+    scene = decisive(scene)
+    parts = [(W_TEXT_LED[k], s) for k, s in (("faces", face), ("scene", scene), ("text", text)) if s]
+    total = sum(w for w, _ in parts) or 1.0
+    return {m: round(sum(w * s.get(m, 0.0) for w, s in parts) / total, 3) for m in MOODS}
+
+
+def clip_text(clip: dict) -> str:
+    """The words that carry a clip's message: title, caption, what is said (in Devanagari
+    when there is one: the embedding model reads Hindi far better in its own script), folk names."""
+    said = clip.get("transcript_native") or clip.get("transcript_roman")
+    parts = [clip.get("title"), clip.get("caption"), said, ", ".join(clip.get("folk_names") or [])]
+    return ". ".join(p for p in parts if p and p.strip() and p.strip() != "(untitled)")
+
+
+def remood(clip: dict) -> dict:
+    """Moods again from the stored face and scene scores plus the clip's words. No video."""
+    stored = (clip.get("raw") or {}).get("vibe") or {}
+    face, scene = stored.get("faces") or {}, stored.get("scene") or {}
+    text = text_scores(clip_text(clip))
+    combined = combine_text_led(face, scene, text)
+    moods = pick_confident(combined)
+    face_moods = [m for m, s in sorted(face.items(), key=lambda kv: -kv[1]) if s >= 0.35][:2]
+    return {
+        "fields": {"description": describe_text(moods, int(stored.get("n_faces") or 0), face_moods),
+                   "reactions": moods, "use_when": use_when_for(moods)},
+        "scores": {**stored, "text": text, "combined": combined, "weights": "text-led",
+                   # the moods before this redo, so it can be undone: reindex --remood-undo
+                   "before": stored.get("before", clip.get("reactions") or [])},
+    }
+
+
 def use_when_for(moods: list[str]) -> list[str]:
     out: list[str] = []
     for m in moods:
@@ -222,7 +328,7 @@ def dialogue_scores(said: str) -> dict[str, float]:
 
 
 def analyse(frames: list[Path], faces_per_frame: list[list[dict]] | None, said: str,
-            text_moods: dict[str, float] | None = None) -> dict:
+            text_moods: dict[str, float] | None = None, words: str | None = None) -> dict:
     """Returns the three clip fields plus the raw scores behind them.
 
     `text_moods` is Laya's reading of title + dialogue (laya.describe_clip); when
@@ -231,10 +337,12 @@ def analyse(frames: list[Path], faces_per_frame: list[list[dict]] | None, said: 
     scene = scene_scores(frames)
     if text_moods is not None:
         dialogue, w_dialogue, source = text_moods, W_DIALOGUE_LAYA, "laya"
-    else:
-        dialogue, w_dialogue, source = dialogue_scores(said), W_DIALOGUE, "embedding"
-    combined = combine(face, scene, dialogue, w_dialogue)
-    moods = pick(combined)
+        combined = combine(face, scene, dialogue, w_dialogue)
+        moods = pick(combined)
+    else:   # the clip's words (title, caption, speech) lead; see W_TEXT_LED
+        dialogue, source = text_scores(words if words is not None else said), "phrases"
+        combined = combine_text_led(face, scene, dialogue)
+        moods = pick_confident(combined)
     face_moods = [m for m, s in sorted(face.items(), key=lambda kv: -kv[1]) if s >= 0.35][:2]
     return {
         "fields": {"description": describe_text(moods, n_faces, face_moods),
