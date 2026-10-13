@@ -186,6 +186,16 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
             raw: dict = {"sidecar": meta}
             reasons: list[str] = []
 
+            # --- text on screen (captions, punchlines) ---------------------------
+            screen_text = ""
+            if config.ENABLE_OCR:
+                try:
+                    from . import ocr
+                    raw["ocr"] = ocr.read_frames(frames)
+                    screen_text = ocr.clean(raw["ocr"])
+                except Exception:
+                    log.exception("on-screen text failed for %s", video.name)
+
             # --- what is said ---------------------------------------------------
             language = meta["language"] or config.DEFAULT_LANGUAGE
             native = meta["transcript"]
@@ -233,6 +243,8 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
                     "topics": meta["topics"],
                 },
             ).fetchone()["id"]
+            if screen_text:
+                conn.execute("UPDATE clips SET screen_text = %s WHERE id = %s", (screen_text, clip_id))
 
             # --- who is in it ---------------------------------------------------
             people = {name: "sidecar" for name in meta["people"]}

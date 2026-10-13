@@ -44,6 +44,10 @@ POLL_SECONDS = float(os.getenv("POLL_SECONDS", "3"))
 
 # Speech to text
 ENABLE_STT = _bool("ENABLE_STT", True)
+# Read text burned into the video (captions, punchlines) off the keyframes: app/ocr.py
+ENABLE_OCR = _bool("ENABLE_OCR", True)
+# Lines dropped from on-screen text: channel tags and logos seen across many clips.
+OCR_WATERMARKS = os.getenv("OCR_WATERMARKS", "vita,mememandir,memeverse143,memeverse,meme mandir,pememandir")
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large-v3")    # small | medium | large-v3 (large-v3 needs ~4 GB RAM)
 WHISPER_COMPUTE = os.getenv("WHISPER_COMPUTE", "int8")    # int8 on CPU, float16 on GPU
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")

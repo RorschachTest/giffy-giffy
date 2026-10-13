@@ -32,7 +32,8 @@ def search_fields(clip: dict, aliases: list[str]) -> dict:
     tags = list(dict.fromkeys([*clip["hashtags"], *title_tags, *caption_tags]))
 
     names = [*clip["folk_names"], title]
-    said = clip["transcript_roman"]
+    # what the clip says: its speech, and the caption burned into the picture
+    said = " ".join(p for p in (clip["transcript_roman"], clip.get("screen_text") or "") if p)
     people = [*clip["people"], *aliases, clip["source_title"]]
     meta = [caption, *tags, clip["description"], *clip["reactions"], *clip["use_when"],
             *clip["topics"],
@@ -59,6 +60,7 @@ def embedding_text(clip: dict) -> str:
         title,
         ", ".join(clip["folk_names"]),
         f"Dialogue: {clip['transcript_roman']}" if clip["transcript_roman"] else "",
+        f"On screen: {clip['screen_text']}" if clip.get("screen_text") else "",
         clip["description"],
         f"People: {', '.join(clip['people'])}" if clip["people"] else "",
         f"From: {clip['source_title']}" if clip["source_title"] else "",

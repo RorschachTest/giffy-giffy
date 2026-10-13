@@ -102,6 +102,8 @@ CREATE TABLE IF NOT EXISTS clip_faces (
 );
 CREATE INDEX IF NOT EXISTS clip_faces_clip ON clip_faces (clip_id);
 ALTER TABLE clip_faces ADD COLUMN IF NOT EXISTS crop TEXT;   -- storage key of a small picture of the face
+-- Text burned into the video, read off the keyframes and cleaned (app/ocr.py); raw readings in raw->'ocr'
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS screen_text TEXT NOT NULL DEFAULT '';
 
 -- What a meme meant when it was sent in a chat, as people told us (app/understand.py).
 -- acts and features are measured at feedback time, so learning never re-embeds.
