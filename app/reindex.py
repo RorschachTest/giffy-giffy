@@ -12,6 +12,8 @@
                                        (for Curate > Faces); re-detects on the clip's keyframes
     python -m app.reindex --screen-text first read the text burned into every clip (keyframes, OCR);
                                        --screen-text-clean only redoes the cleaning from stored readings
+    python -m app.reindex --remood     first redo every clip's mood from its stored face and scene
+                                       scores plus its words (title, caption, speech); no video read
     python -m app.reindex --stt        first re-run speech to text on every clip with audio
                                        (not typed sidecar transcripts); then --laya is worth a rerun
 
@@ -103,6 +105,26 @@ def backfill_screen_text(only_clean: bool = False) -> None:
         if n % 100 == 0 or n == len(rows):
             print(f"screen-text: {n}/{len(rows)} clips, {found} with text", flush=True)
     _report_failed("screen-text", failed, len(rows))
+
+
+def backfill_remood() -> None:
+    """Moods again for every clip, text-led (vibe.remood). Moods a sidecar gave are kept."""
+    with db.session() as conn:
+        rows = conn.execute(
+            """SELECT id, title, caption, screen_text, transcript_native, transcript_roman, folk_names, reactions, raw
+                 FROM clips WHERE raw ? 'vibe' ORDER BY id""").fetchall()
+    changed = kept = 0
+    for r in rows:
+        if ((r["raw"] or {}).get("sidecar") or {}).get("reactions"):
+            kept += 1
+            continue
+        found = vibe.remood(r)
+        with db.session() as conn:
+            conn.execute("UPDATE clips SET description = %s, reactions = %s, use_when = %s, raw = %s WHERE id = %s",
+                         (found["fields"]["description"], found["fields"]["reactions"], found["fields"]["use_when"],
+                          Jsonb({**(r["raw"] or {}), "vibe": found["scores"]}), r["id"]))
+        changed += 1
+    print(f"remood: {changed} clips redone, {kept} kept (moods from a sidecar)")
 
 
 def backfill_roman() -> None:
@@ -217,6 +239,13 @@ def main() -> None:
         backfill_roman()
     if "--screen-text" in sys.argv or "--screen-text-clean" in sys.argv:
         backfill_screen_text(only_clean="--screen-text-clean" in sys.argv)
+    if "--remood-undo" in sys.argv:
+        with db.session() as conn:
+            n = conn.execute("""UPDATE clips SET reactions = ARRAY(SELECT jsonb_array_elements_text(raw->'vibe'->'before'))
+                                 WHERE raw->'vibe' ? 'before'""").rowcount
+        print(f"remood-undo: {n} clips back to their earlier moods")
+    elif "--remood" in sys.argv:
+        backfill_remood()
     if "--face-crops" in sys.argv:
         if not config.ENABLE_FACES:
             sys.exit("--face-crops needs ENABLE_FACES=1")

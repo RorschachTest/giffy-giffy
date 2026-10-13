@@ -20,7 +20,7 @@ returns kw and sem for every hit so you can see why something ranked.
 """
 from __future__ import annotations
 
-from . import config, laya
+from . import config, hinglish, laya
 from .db import vec
 from .embed import embed_one
 from .text import normalise
@@ -75,7 +75,7 @@ SELECT {COLUMNS}, kw, sem, tm,
        %(wk)s * kw + %(ws)s * sem + %(wt)s * tm * (1 - LEAST(kw, 1))
          + %(wp)s * LEAST(ln(%(learn)s * shares + duplicates_seen), 3) AS score
   FROM scored
- WHERE kw >= %(min_kw)s OR sem >= %(min_sem)s OR tm >= %(min_tm)s
+ WHERE duplicate_of IS NULL AND (kw >= %(min_kw)s OR sem >= %(min_sem)s OR tm >= %(min_tm)s)
  ORDER BY score DESC, id
  LIMIT %(limit)s OFFSET %(offset)s
 """
@@ -88,6 +88,7 @@ BROWSE_ORDER = "(shares + duplicates_seen) DESC, first_seen DESC, id DESC"
 TRENDING_SQL = f"""
 SELECT {COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS tm, NULL::real AS score
   FROM clips
+ WHERE duplicate_of IS NULL
  ORDER BY {BROWSE_ORDER}
  LIMIT %(limit)s OFFSET %(offset)s
 """
@@ -96,6 +97,7 @@ BROWSE_AFTER_SQL = f"""
 SELECT {COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS tm, NULL::real AS score
   FROM clips
  WHERE ((shares + duplicates_seen), first_seen, id) < (%(pop)s, %(seen)s::timestamptz, %(id)s)
+   AND duplicate_of IS NULL
  ORDER BY {BROWSE_ORDER}
  LIMIT %(limit)s
 """
@@ -128,7 +130,7 @@ def search(conn, query: str, limit: int = 24, log_query: bool = True, intent: di
         intent = laya.query_intent(query)   # {} when Laya is off, slow or unsure
     rows = conn.execute(SEARCH_SQL, {
         "qn": qn,
-        "qv": vec(embed_one(query)),          # the model gets the query as typed
+        "qv": vec(embed_one(hinglish.gloss(query))),   # as typed, plus an English gloss of its Hindi words
         "tokens": [t for t in qn.split() if len(t) >= 3] or qn.split(),
         "qt": list(intent), "qw": list(intent.values()),
         "wk": config.W_KEYWORD, "ws": config.W_SEMANTIC, "wt": config.W_TOPIC,
