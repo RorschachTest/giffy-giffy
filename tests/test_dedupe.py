@@ -90,3 +90,11 @@ def test_same_clip_rule_on_real_cases():
     assert not same_clip(4.6, 0.1, "ap kaha the jyanee baba ji kaha the", "hua tha")
     # same footage, the transcript only partly recognised (161 / 377): still the same clip
     assert same_clip(2.5, 0.45, kaun, "ho naheen ye log, kaha se ate hee.")
+
+
+def test_same_room_different_joke_is_not_a_duplicate():
+    from app.media import same_clip
+    # two Puneet Superstar shorts shot in the same room: footage 0.985 alike, words not
+    assert not same_clip(16.1, 0.32, "abe bhadve too to 2025 men bhee kala tha", "abe badve, 2025 men to itne kand kee hain", 0.985)
+    # a repost with uploader's own title: mostly the same words, same footage
+    assert same_clip(6.8, 0.68, "aise main bada sakt loda hoon, lekin yaar", "aise main bada sakt lauda hoon, lekin yaar", 0.973)
