@@ -85,17 +85,32 @@ LAYA_QUERY_MIN = float(os.getenv("LAYA_QUERY_MIN", "0.3"))  # probability to tre
 ENABLE_FACES = _bool("ENABLE_FACES", True)
 FACE_MODEL = os.getenv("FACE_MODEL", "buffalo_l")
 FACE_DIM = 512
-FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.42"))  # cosine similarity
+# Cosine similarity for a face to be given a known person's name automatically (new
+# clips, and spreading a name after a group is named). Was 0.42: after naming "puneet",
+# 272 of 1331 faces had landed between 0.42 and 0.52, where meme frames (small, blurred,
+# side-on) start confusing people. Weaker matches are left for a person to confirm.
+FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.5"))
+# Below this a named face is shown as "unsure" in Curate > Faces, least sure first.
+FACE_UNSURE_BELOW = float(os.getenv("FACE_UNSURE_BELOW", "0.55"))
 # Curate > Faces groups unknown faces by similarity to a group's average face. Higher =
 # purer groups but one person split into more of them (naming them alike merges them).
-# 0.6 measured on 2.5k clips: top groups >= 89% one person by title; 0.5 mixed people.
-FACE_GROUP_THRESHOLD = float(os.getenv("FACE_GROUP_THRESHOLD", "0.6"))
+# Faces are linked only when each is among the other's FACE_GROUP_NEIGHBOURS closest and
+# similar enough (mutual nearest neighbours). Measured on 7.7k unknown faces: 0.55 kept
+# the top 30 groups one person each by title, with bigger groups than the old greedy
+# method; 0.45-0.5 mixed people.
+FACE_GROUP_THRESHOLD = float(os.getenv("FACE_GROUP_THRESHOLD", "0.55"))
+FACE_GROUP_NEIGHBOURS = int(os.getenv("FACE_GROUP_NEIGHBOURS", "10"))
 FACE_MIN_DET_SCORE = float(os.getenv("FACE_MIN_DET_SCORE", "0.6"))
 FACE_MIN_SIZE = int(os.getenv("FACE_MIN_SIZE", "40"))                     # pixels
 
 # Duplicate detection
-DEDUP_MAX_HAMMING = int(os.getenv("DEDUP_MAX_HAMMING", "6"))   # of 64 bits, averaged over frames
-DEDUP_MAX_DURATION_DIFF = float(os.getenv("DEDUP_MAX_DURATION_DIFF", "0.7"))
+# Re-uploads are often trimmed or padded: lengths may differ by this many seconds,
+# or by DEDUP_MAX_DURATION_SHARE of the clip, whichever is more.
+DEDUP_MAX_DURATION_DIFF = float(os.getenv("DEDUP_MAX_DURATION_DIFF", "1.5"))
+DEDUP_MAX_DURATION_SHARE = float(os.getenv("DEDUP_MAX_DURATION_SHARE", "0.15"))
+# Shorter transcripts are not compared as speech (too common). The same-clip rule itself
+# (picture and speech thresholds) is media.same_clip.
+DEDUP_MIN_SPEECH_CHARS = int(os.getenv("DEDUP_MIN_SPEECH_CHARS", "20"))   # shorter lines are too common
 
 # Ranking weights
 W_KEYWORD = float(os.getenv("W_KEYWORD", "0.65"))
