@@ -62,3 +62,56 @@ def build(romanise) -> dict[str, str]:
         for s in spellings:
             out.setdefault(romanise(s), english)
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Romanised Hindi in a QUERY -> an English gloss for the meaning model
+# --------------------------------------------------------------------------- #
+# The embedding model reads English and Devanagari Hindi well but romanised Hindi
+# only by shared filler words ("kaun hai ye log" landed nearer "bahut khush hoon" than
+# itself). Searches arrive romanised ("salary day already feeling gareeb"), so the
+# meaning lane also gets an English gloss of the Hindi words it knows. Measured: with
+# the gloss "kaun hai ye log" finds "Kon hai yeh log kaha se" first; without it, not in
+# the top 4. Word search still uses the query exactly as typed.
+GLOSS: dict[str, str] = {
+    # money, work, study
+    "gareeb": "poor broke", "garib": "poor broke", "ameer": "rich", "paisa": "money", "paise": "money",
+    "kharcha": "expenses spending", "udhaar": "loan owe money", "kangaal": "broke", "tankhwah": "salary",
+    "naukri": "job", "kaam": "work", "chhutti": "holiday leave", "padhai": "studies", "padhna": "study",
+    "imtihaan": "exam", "pariksha": "exam", "fail": "fail", "number": "marks",
+    # people
+    "dost": "friend", "yaar": "friend", "bhai": "brother bro", "behen": "sister", "papa": "father dad",
+    "mummy": "mother mom", "maa": "mother", "baap": "father", "beta": "son", "biwi": "wife", "pati": "husband",
+    "rishtedaar": "relatives", "padosi": "neighbour", "log": "people", "launda": "guy", "ladki": "girl",
+    "ladka": "boy", "bachcha": "kid", "buddha": "old man", "neta": "politician",
+    # feelings
+    "gussa": "angry anger", "dukh": "sad sorrow", "dukhi": "sad", "khush": "happy", "khushi": "happiness",
+    "dar": "fear scared", "darr": "fear scared", "sharam": "shame embarrassed", "pyaar": "love", "pyar": "love",
+    "nafrat": "hate", "jalan": "jealous", "bore": "bored", "thak": "tired", "thaka": "tired", "pareshan": "worried troubled",
+    "majboor": "helpless", "akela": "alone lonely", "rona": "crying", "ro": "cry", "hasna": "laughing",
+    "hasi": "laughter", "chillana": "shouting", "daant": "scolding", "pitai": "beating",
+    # everyday
+    "khana": "food eating", "bhookh": "hungry", "neend": "sleep", "sona": "sleep", "ghar": "home",
+    "shaadi": "wedding marriage", "party": "party", "garmi": "heat summer", "sardi": "cold winter",
+    "baarish": "rain", "dhoop": "sun", "safar": "travel", "gaadi": "car vehicle", "late": "late",
+    "jaldi": "hurry quick", "der": "late delay", "subah": "morning", "raat": "night", "kal": "tomorrow yesterday",
+    "aaj": "today", "phone": "phone",
+    # question words and common verbs (so a question reads as one)
+    "kaun": "who", "kon": "who", "kya": "what", "kyun": "why", "kyu": "why", "kaise": "how", "kahan": "where",
+    "kab": "when", "kitna": "how much", "karu": "do", "karun": "do", "karoon": "do", "kar": "do",
+    "dekh": "look", "dekho": "look", "suno": "listen", "bolo": "say", "bol": "say", "chup": "quiet shut up",
+    "jao": "go away", "bhaago": "run away", "ruk": "wait stop", "maar": "hit", "jhoot": "lie", "sach": "truth",
+    "galti": "mistake", "pakda": "caught", "chori": "theft stealing", "chor": "thief", "dhoka": "betrayal cheating",
+    "nahi": "no not", "nahin": "no not", "haan": "yes", "bas": "enough", "bahut": "very a lot", "thoda": "a little",
+    "pagal": "crazy mad", "bekaar": "useless", "mast": "awesome", "bakwaas": "nonsense",
+}
+
+
+def gloss(query: str) -> str:
+    """The query with an English gloss of the Hindi words it uses, for the meaning model.
+    Unchanged when no word is known."""
+    import re as _re
+
+    words = _re.findall(r"[a-z]+", query.lower())
+    extra = list(dict.fromkeys(GLOSS[w] for w in words if w in GLOSS))
+    return f"{query} ({'; '.join(extra)})" if extra else query

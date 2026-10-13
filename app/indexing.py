@@ -58,7 +58,10 @@ def embedding_text(clip: dict) -> str:
     parts = [
         title,
         ", ".join(clip["folk_names"]),
-        f"Dialogue: {clip['transcript_roman']}" if clip["transcript_roman"] else "",
+        # Devanagari when there is one: the meaning model reads Hindi in its own script far
+        # better than romanised ("who are these people" now finds "Kon hain ye log" first)
+        f"Dialogue: {clip.get('transcript_native') or clip['transcript_roman']}"
+        if (clip.get("transcript_native") or clip["transcript_roman"]) else "",
         clip["description"],
         f"People: {', '.join(clip['people'])}" if clip["people"] else "",
         f"From: {clip['source_title']}" if clip["source_title"] else "",
