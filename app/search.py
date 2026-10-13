@@ -75,7 +75,7 @@ SELECT {COLUMNS}, kw, sem, tm,
        %(wk)s * kw + %(ws)s * sem + %(wt)s * tm * (1 - LEAST(kw, 1))
          + %(wp)s * LEAST(ln(%(learn)s * shares + duplicates_seen), 3) AS score
   FROM scored
- WHERE kw >= %(min_kw)s OR sem >= %(min_sem)s OR tm >= %(min_tm)s
+ WHERE duplicate_of IS NULL AND (kw >= %(min_kw)s OR sem >= %(min_sem)s OR tm >= %(min_tm)s)
  ORDER BY score DESC, id
  LIMIT %(limit)s OFFSET %(offset)s
 """
@@ -88,6 +88,7 @@ BROWSE_ORDER = "(shares + duplicates_seen) DESC, first_seen DESC, id DESC"
 TRENDING_SQL = f"""
 SELECT {COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS tm, NULL::real AS score
   FROM clips
+ WHERE duplicate_of IS NULL
  ORDER BY {BROWSE_ORDER}
  LIMIT %(limit)s OFFSET %(offset)s
 """
@@ -96,6 +97,7 @@ BROWSE_AFTER_SQL = f"""
 SELECT {COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS tm, NULL::real AS score
   FROM clips
  WHERE ((shares + duplicates_seen), first_seen, id) < (%(pop)s, %(seen)s::timestamptz, %(id)s)
+   AND duplicate_of IS NULL
  ORDER BY {BROWSE_ORDER}
  LIMIT %(limit)s
 """
