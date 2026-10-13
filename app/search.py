@@ -20,7 +20,7 @@ returns kw and sem for every hit so you can see why something ranked.
 """
 from __future__ import annotations
 
-from . import config, laya
+from . import config, hinglish, laya
 from .db import vec
 from .embed import embed_one
 from .text import normalise
@@ -130,7 +130,7 @@ def search(conn, query: str, limit: int = 24, log_query: bool = True, intent: di
         intent = laya.query_intent(query)   # {} when Laya is off, slow or unsure
     rows = conn.execute(SEARCH_SQL, {
         "qn": qn,
-        "qv": vec(embed_one(query)),          # the model gets the query as typed
+        "qv": vec(embed_one(hinglish.gloss(query))),   # as typed, plus an English gloss of its Hindi words
         "tokens": [t for t in qn.split() if len(t) >= 3] or qn.split(),
         "qt": list(intent), "qw": list(intent.values()),
         "wk": config.W_KEYWORD, "ws": config.W_SEMANTIC, "wt": config.W_TOPIC,

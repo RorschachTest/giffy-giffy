@@ -176,6 +176,19 @@ class ClipPatch(BaseModel):
     reviewed: bool | None = None   # true clears the needs-review flag
 
 
+@app.get("/clips/{clip_id}/state")
+def clip_state(clip_id: int) -> dict:
+    """What a text-only decision model (Jev, Laya) would read about this clip."""
+    from . import clip_state as cs
+
+    with db.session() as conn:
+        row = conn.execute("SELECT * FROM clips WHERE id = %s", (clip_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, "no such clip")
+    state = cs.build(row)
+    return {"id": clip_id, "state": state, "thin": cs.is_thin(state)}
+
+
 @app.patch("/clips/{clip_id}")
 def patch_clip(clip_id: int, patch: ClipPatch, request: Request) -> dict:
     changes = patch.model_dump(exclude_none=True)
