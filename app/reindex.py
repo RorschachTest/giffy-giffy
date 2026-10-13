@@ -10,6 +10,8 @@
                                        (after changing text.to_roman or the loanwords in hinglish.py)
     python -m app.reindex --face-crops first save a picture of every stored face that has none
                                        (for Curate > Faces); re-detects on the clip's keyframes
+    python -m app.reindex --screen-text first read the text burned into every clip (keyframes, OCR);
+                                       --screen-text-clean only redoes the cleaning from stored readings
     python -m app.reindex --remood     first redo every clip's mood from its stored face and scene
                                        scores plus its words (title, caption, speech); no video read
     python -m app.reindex --stt        first re-run speech to text on every clip with audio
@@ -73,12 +75,44 @@ def backfill_face_crops() -> None:
     _report_failed("face-crops", failed, len(clip_ids))
 
 
+def backfill_screen_text(only_clean: bool = False) -> None:
+    """On-screen text for every clip: read the keyframes (or, with only_clean, reuse the
+    stored readings) and clean them. The word list for re-spacing is rebuilt first."""
+    from . import ocr
+
+    with db.session() as conn:
+        ocr.build_word_list(conn)
+        rows = conn.execute("SELECT id, file, duration, raw FROM clips ORDER BY id").fetchall()
+    failed, found = [], 0
+    for n, r in enumerate(rows, 1):
+        try:
+            raw = r["raw"] or {}
+            if only_clean:
+                if "ocr" not in raw:
+                    continue
+                lines = raw["ocr"]
+            else:
+                with tempfile.TemporaryDirectory(prefix="memeclip_") as tmp, storage.local_copy(r["file"]) as f:
+                    lines = ocr.read_frames(media.extract_keyframes(f, Path(tmp), r["duration"], config.KEYFRAMES))
+            text = ocr.clean(lines)
+            found += bool(text)
+            with db.session() as conn:
+                conn.execute("UPDATE clips SET screen_text = %s, raw = %s WHERE id = %s",
+                             (text, Jsonb({**raw, "ocr": lines}), r["id"]))
+        except Exception as exc:   # one bad clip must not stop the rest
+            failed.append(r["id"])
+            print(f"screen-text: clip {r['id']} SKIPPED: {exc}", file=sys.stderr)
+        if n % 100 == 0 or n == len(rows):
+            print(f"screen-text: {n}/{len(rows)} clips, {found} with text", flush=True)
+    _report_failed("screen-text", failed, len(rows))
+
+
 def backfill_remood() -> None:
     """Moods again for every clip, text-led (vibe.remood). Moods a sidecar gave are kept."""
     with db.session() as conn:
         rows = conn.execute(
-            """SELECT id, title, caption, transcript_native, transcript_roman, folk_names, reactions, raw FROM clips
-                WHERE raw ? 'vibe' ORDER BY id""").fetchall()
+            """SELECT id, title, caption, screen_text, transcript_native, transcript_roman, folk_names, reactions, raw
+                 FROM clips WHERE raw ? 'vibe' ORDER BY id""").fetchall()
     changed = kept = 0
     for r in rows:
         if ((r["raw"] or {}).get("sidecar") or {}).get("reactions"):
@@ -203,6 +237,8 @@ def main() -> None:
     db.init_db()
     if "--roman" in sys.argv:
         backfill_roman()
+    if "--screen-text" in sys.argv or "--screen-text-clean" in sys.argv:
+        backfill_screen_text(only_clean="--screen-text-clean" in sys.argv)
     if "--remood-undo" in sys.argv:
         with db.session() as conn:
             n = conn.execute("""UPDATE clips SET reactions = ARRAY(SELECT jsonb_array_elements_text(raw->'vibe'->'before'))

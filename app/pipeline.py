@@ -199,6 +199,16 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
             raw: dict = {"sidecar": meta}
             reasons: list[str] = []
 
+            # --- text on screen (captions, punchlines) ---------------------------
+            screen_text = ""
+            if config.ENABLE_OCR:
+                try:
+                    from . import ocr
+                    raw["ocr"] = ocr.read_frames(frames)
+                    screen_text = ocr.clean(raw["ocr"])
+                except Exception:
+                    log.exception("on-screen text failed for %s", video.name)
+
             # --- what is said ---------------------------------------------------
             language = meta["language"] or config.DEFAULT_LANGUAGE
             native = meta["transcript"]
@@ -258,6 +268,8 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
                     "topics": meta["topics"],
                 },
             ).fetchone()["id"]
+            if screen_text:
+                conn.execute("UPDATE clips SET screen_text = %s WHERE id = %s", (screen_text, clip_id))
             if visual:
                 conn.execute("UPDATE clips SET visual = %s::vector WHERE id = %s", (str(visual), clip_id))
 
@@ -302,7 +314,7 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
             if config.ENABLE_VIBE:
                 try:
                     found = vibe.analyse(frames, detected, native, text_moods,
-                                         words=vibe.clip_text({**meta, "transcript_native": native,
+                                         words=vibe.clip_text({**meta, "screen_text": screen_text, "transcript_native": native,
                                                                "transcript_roman": roman}))
                     raw["vibe"] = found["scores"]
                     filled = vibe.fill_missing({k: meta[k] for k in found["fields"]}, found["fields"])

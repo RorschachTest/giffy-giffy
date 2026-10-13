@@ -102,6 +102,8 @@ CREATE TABLE IF NOT EXISTS clip_faces (
 );
 CREATE INDEX IF NOT EXISTS clip_faces_clip ON clip_faces (clip_id);
 ALTER TABLE clip_faces ADD COLUMN IF NOT EXISTS crop TEXT;   -- storage key of a small picture of the face
+-- Text burned into the video, read off the keyframes and cleaned (app/ocr.py); raw readings in raw->'ocr'
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS screen_text TEXT NOT NULL DEFAULT '';
 -- people a person said this face is NOT ("Not puneet"); automatic matching never gives them back
 ALTER TABLE clip_faces ADD COLUMN IF NOT EXISTS rejected BIGINT[] NOT NULL DEFAULT '{}';
 -- A merged re-upload points at the clip it duplicates (python -m app.dedupe). The row and

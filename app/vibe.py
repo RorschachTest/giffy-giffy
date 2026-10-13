@@ -221,10 +221,11 @@ def combine_text_led(face: dict[str, float], scene: dict[str, float], text: dict
 
 
 def clip_text(clip: dict) -> str:
-    """The words that carry a clip's message: title, caption, what is said (in Devanagari
+    """The words that carry a clip's message: title, caption, on-screen text, what is said (in Devanagari
     when there is one: the embedding model reads Hindi far better in its own script), folk names."""
     said = clip.get("transcript_native") or clip.get("transcript_roman")
-    parts = [clip.get("title"), clip.get("caption"), said, ", ".join(clip.get("folk_names") or [])]
+    parts = [clip.get("title"), clip.get("caption"), clip.get("screen_text"), said,
+             ", ".join(clip.get("folk_names") or [])]
     return ". ".join(p for p in parts if p and p.strip() and p.strip() != "(untitled)")
 
 

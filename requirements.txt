@@ -7,4 +7,6 @@ pillow>=10
 numpy<2
 faster-whisper>=1.0
 fastembed>=0.3
+rapidocr-onnxruntime==1.4.4   # on-screen text (app/ocr.py)
+wordninja==2.0.0              # re-spacing run-together OCR words
 boto3>=1.34          # S3 client for STORAGE=s3 (Garage locally, R2 / S3 later)
