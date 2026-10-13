@@ -197,7 +197,6 @@ def real_speech(text: str | None, min_chars: int = 20) -> bool:
 
 SIMILAR_FOOTAGE = 0.88  # visual (CLIP) similarity: the same footage zoomed, cropped or watermarked
 SAME_FOOTAGE = 0.93
-IDENTICAL_FOOTAGE = 0.97
 MOSTLY_SAME_SPEECH = 0.6
 
 
@@ -206,7 +205,9 @@ def same_clip(frame_dist: float, speech_sim: float, speech_a: str | None, speech
     """The rule, from the duplicates actually found in the library (frame_dist: picture
     hash, low = alike; visual_sim: CLIP, high = alike, survives zoom and crop):
     - both talk:      same words and similar footage; mostly the same words and the same
-                      footage; or identical footage unless the words are clearly different
+                      footage; or the exact same picture unless the words are clearly
+                      different. Footage alone is never enough: one creator filming in one
+                      room makes different jokes that look the same (0.985 apart, words 0.32)
     - neither talks:  the same picture hash, strictly (the same animal footage with a
                       laugh or a shout dubbed on is two memes, and silent clips give no
                       words to tell them apart)
@@ -217,7 +218,7 @@ def same_clip(frame_dist: float, speech_sim: float, speech_a: str | None, speech
     if talk_a and talk_b:
         return (speech_sim >= SAME_SPEECH and (frame_dist <= SIMILAR_PICTURE or v >= SIMILAR_FOOTAGE)) or \
                (speech_sim >= MOSTLY_SAME_SPEECH and v >= SAME_FOOTAGE) or \
-               (speech_sim >= DIFFERENT_SPEECH and (frame_dist <= SAME_PICTURE or v >= IDENTICAL_FOOTAGE))
+               (speech_sim >= DIFFERENT_SPEECH and frame_dist <= SAME_PICTURE)
     if not talk_a and not talk_b:
         return frame_dist <= SAME_PICTURE
     return False
