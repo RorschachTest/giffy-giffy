@@ -52,25 +52,27 @@ def search_fields(clip: dict, aliases: list[str]) -> dict:
 
 
 def embedding_text(clip: dict) -> str:
-    """Plain sentences for the meaning-based model. Not normalised: the model
-    understands real spelling better than our squashed spelling."""
+    """Plain sentences for the meaning-based model: the clip's MESSAGE (title, names,
+    on-screen text, what is said, who, from where) plus a short mood word. Not normalised:
+    the model understands real spelling better than our squashed spelling.
+
+    Machine-written sentences (description, use-when, topics) stay out: the small model
+    averages everything, and that boilerplate drowned the real words. Measured on the
+    library: "who are these people" ranked "Kon hain ye log" 1,166th with it, 1st without;
+    "boys are simple" matched its on-screen caption at 0.79 instead of 0.52. They remain
+    in the keyword field (s_meta)."""
     title, _ = clean_caption(clip["title"])
     caption, _ = clean_caption(clip["caption"])
+    said = clip.get("transcript_native") or clip["transcript_roman"]   # Devanagari reads far better
     parts = [
         title,
         ", ".join(clip["folk_names"]),
-        # Devanagari when there is one: the meaning model reads Hindi in its own script far
-        # better than romanised ("who are these people" now finds "Kon hain ye log" first)
-        f"Dialogue: {clip.get('transcript_native') or clip['transcript_roman']}"
-        if (clip.get("transcript_native") or clip["transcript_roman"]) else "",
         f"On screen: {clip['screen_text']}" if clip.get("screen_text") else "",
-        clip["description"],
+        f"Dialogue: {said}" if said else "",
         f"People: {', '.join(clip['people'])}" if clip["people"] else "",
         f"From: {clip['source_title']}" if clip["source_title"] else "",
-        f"Mood: {', '.join(clip['reactions'])}" if clip["reactions"] else "",
-        f"Use when: {'; '.join(clip['use_when'])}" if clip["use_when"] else "",
-        f"About: {', '.join(clip['topics'])}" if clip["topics"] else "",
         caption,
+        f"Mood: {', '.join(clip['reactions'])}" if clip["reactions"] else "",
     ]
     return ". ".join(p for p in parts if p)
 
