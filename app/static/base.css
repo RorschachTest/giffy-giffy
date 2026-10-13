@@ -154,3 +154,4 @@ input[type=text], textarea, input[type=file] { width: 100%; outline: none; }
                               border: 1px solid var(--hair, rgba(255, 255, 255, .16)); background: var(--core, #111); }
 .face-form input:disabled { opacity: .7; }
 .face-msg { flex-basis: 100%; font-size: 13px; color: var(--text-2, inherit); min-height: 1.2em; }
+.face-check { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 8px 10px; }

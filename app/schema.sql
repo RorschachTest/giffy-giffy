@@ -102,6 +102,8 @@ CREATE TABLE IF NOT EXISTS clip_faces (
 );
 CREATE INDEX IF NOT EXISTS clip_faces_clip ON clip_faces (clip_id);
 ALTER TABLE clip_faces ADD COLUMN IF NOT EXISTS crop TEXT;   -- storage key of a small picture of the face
+-- people a person said this face is NOT ("Not puneet"); automatic matching never gives them back
+ALTER TABLE clip_faces ADD COLUMN IF NOT EXISTS rejected BIGINT[] NOT NULL DEFAULT '{}';
 -- A merged re-upload points at the clip it duplicates (python -m app.dedupe). The row and
 -- its files are kept; search, browse and faces skip it, and its share link redirects.
 ALTER TABLE clips ADD COLUMN IF NOT EXISTS duplicate_of BIGINT REFERENCES clips(id) ON DELETE SET NULL;
