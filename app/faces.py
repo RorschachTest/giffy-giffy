@@ -287,8 +287,9 @@ def face_groups(conn, threshold: float | None = None) -> list[dict]:
 
     threshold = config.FACE_GROUP_THRESHOLD if threshold is None else threshold
     rows = conn.execute(
-        """SELECT id, clip_id, crop, embedding::text AS e FROM clip_faces
-            WHERE person_id IS NULL ORDER BY id"""
+        """SELECT f.id, f.clip_id, f.crop, f.embedding::text AS e
+             FROM clip_faces f JOIN clips c ON c.id = f.clip_id
+            WHERE f.person_id IS NULL AND c.duplicate_of IS NULL ORDER BY f.id"""
     ).fetchall()
     if not rows:
         return []
@@ -329,6 +330,7 @@ def known_people(conn) -> list[dict]:
                   (array_agg(f.crop ORDER BY f.score DESC NULLS LAST) FILTER (WHERE f.crop IS NOT NULL))[1] AS crop,
                   (array_agg(c.thumb ORDER BY f.score DESC NULLS LAST))[1] AS thumb
              FROM people p JOIN clip_faces f ON f.person_id = p.id JOIN clips c ON c.id = f.clip_id
+            WHERE c.duplicate_of IS NULL
             GROUP BY p.id ORDER BY clips DESC, p.name"""
     ).fetchall()
 

@@ -125,7 +125,7 @@ def search(request: Request, q: str = "", limit: int = 24, offset: int = 0, afte
             raise HTTPException(400, "bad 'after' cursor") from None
         # Browsing pages through the whole library: say how big it is, once, on the first page.
         first = browsing and offset == 0 and not after
-        total = conn.execute("SELECT count(*) AS n FROM clips").fetchone()["n"] if first else None
+        total = conn.execute("SELECT count(*) AS n FROM clips WHERE duplicate_of IS NULL").fetchone()["n"] if first else None
     # `next` asks for the page after this one (keyset); None when this page is the last
     nxt = search_mod.browse_cursor(rows[-1]) if browsing and len(rows) == limit else None
     return {"query": q, "intent": intent, "offset": offset, "total": total, "next": nxt,
@@ -244,7 +244,7 @@ def face_clips(request: Request, face_ids: str = "", person_id: int | None = Non
     with db.session() as conn:
         rows = conn.execute(
             f"""SELECT {search_mod.COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS score
-                  FROM clips WHERE id IN (SELECT clip_id FROM clip_faces
+                  FROM clips WHERE duplicate_of IS NULL AND id IN (SELECT clip_id FROM clip_faces
                                            WHERE id = ANY(%(ids)s) OR person_id = %(pid)s)
                  ORDER BY {search_mod.BROWSE_ORDER}""",
             {"ids": ids, "pid": person_id},
@@ -295,7 +295,7 @@ def review(request: Request, limit: int = 50) -> dict:
     with db.session() as conn:
         rows = conn.execute(
             f"""SELECT {search_mod.COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS score
-                  FROM clips WHERE needs_review ORDER BY first_seen DESC LIMIT %s""",
+                  FROM clips WHERE needs_review AND duplicate_of IS NULL ORDER BY first_seen DESC LIMIT %s""",
             (max(1, min(limit, 200)),),
         ).fetchall()
     return {"count": len(rows), "results": [_public(r, request) for r in rows]}

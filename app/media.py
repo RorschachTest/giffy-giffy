@@ -103,13 +103,42 @@ def make_thumb(frame: Path, out: Path, height: int = 360) -> Path:
 # Picture hashing for duplicate detection
 # --------------------------------------------------------------------------- #
 
+BORDER_DARK = 28        # a row or column this dark (and this even) is a letterbox bar, not picture
+BORDER_SPREAD = 18
+
+
+def trim_borders(im: "Image.Image") -> "Image.Image":
+    """Cut black bars (letterbox / pillarbox) off a frame, so a re-upload with bars
+    hashes like the original. Keeps the frame as it is if the bars would leave
+    less than a third of it."""
+    g = im.convert("L")
+    w, h = g.size
+    px = g.load()
+
+    def is_bar(values) -> bool:
+        vals = list(values)
+        return max(vals) - min(vals) <= BORDER_SPREAD and sum(vals) / len(vals) <= BORDER_DARK
+
+    step_x, step_y = max(1, w // 64), max(1, h // 64)
+    rows = [is_bar(px[x, y] for x in range(0, w, step_x)) for y in range(h)]
+    cols = [is_bar(px[x, y] for y in range(0, h, step_y)) for x in range(w)]
+    top = next((i for i, b in enumerate(rows) if not b), 0)
+    bottom = h - next((i for i, b in enumerate(reversed(rows)) if not b), 0)
+    left = next((i for i, b in enumerate(cols) if not b), 0)
+    right = w - next((i for i, b in enumerate(reversed(cols)) if not b), 0)
+    if (bottom - top) * (right - left) < w * h / 3:
+        return im
+    return im.crop((left, top, right, bottom))
+
+
 def dhash(frame: Path) -> int:
-    """64-bit difference hash. Similar pictures give hashes that differ in few bits.
+    """64-bit difference hash of the picture inside any black bars. Similar pictures
+    give hashes that differ in few bits.
 
     Returned as a signed 64-bit integer so it fits a Postgres BIGINT.
     """
     with Image.open(frame) as im:
-        px = list(im.convert("L").resize((9, 8), Image.LANCZOS).getdata())
+        px = list(trim_borders(im).convert("L").resize((9, 8), Image.LANCZOS).getdata())
     bits = 0
     for row in range(8):
         for col in range(8):
@@ -125,3 +154,70 @@ def mean_hamming(a: list[int], b: list[int]) -> float:
     if not a or len(a) != len(b):
         return 64.0
     return sum(hamming(x, y) for x, y in zip(a, b)) / len(a)
+
+
+def frame_distance(a: list[int], b: list[int]) -> float:
+    """How different two clips look, tolerant of trimming: every keyframe is matched
+    to its closest keyframe in the other clip (any position), both ways, averaged.
+    A trimmed or padded re-upload samples slightly different moments, so position-
+    by-position comparison (mean_hamming) misses it."""
+    if not a or not b:
+        return 64.0
+    one = sum(min(hamming(x, y) for y in b) for x in a) / len(a)
+    two = sum(min(hamming(y, x) for x in a) for y in b) / len(b)
+    return (one + two) / 2
+
+
+# --------------------------------------------------------------------------- #
+# Is it the same clip? One rule for uploads (pipeline) and clean-ups (dedupe)
+# --------------------------------------------------------------------------- #
+
+# Lines Whisper writes over music or silence: equal in unrelated clips, so not evidence.
+FILLER_SPEECH = ("thanks for watching", "thank you for watching", "thank you", "subscribe",
+                 "subtitles by", "please subscribe", "like and subscribe", "music", "hua hai")
+SAME_PICTURE = 4.0       # frame_distance: the same footage (strict: plain frames look alike)
+SIMILAR_PICTURE = 12.0   # frame_distance: the same footage re-encoded, watermarked or cropped
+SAME_SPEECH = 0.8        # pg_trgm similarity of the Roman transcripts
+DIFFERENT_SPEECH = 0.3   # below this the words are clearly different
+
+
+def informative_hash(h: int) -> bool:
+    """A frame hash that says something: not all-dark / all-even (popcount near 0 or 64)."""
+    n = bin(h & 0xFFFFFFFFFFFFFFFF).count("1")
+    return 4 <= n <= 60
+
+
+def real_speech(text: str | None, min_chars: int = 20) -> bool:
+    """Speech that tells clips apart: long enough, and not a known filler line."""
+    t = " ".join((text or "").lower().replace(".", " ").replace(",", " ").split())
+    if len(t) < min_chars:
+        return False
+    return not any(t == f or (t.startswith(f) and len(t) < len(f) + 8) for f in FILLER_SPEECH)
+
+
+SIMILAR_FOOTAGE = 0.88  # visual (CLIP) similarity: the same footage zoomed, cropped or watermarked
+SAME_FOOTAGE = 0.93
+IDENTICAL_FOOTAGE = 0.97
+MOSTLY_SAME_SPEECH = 0.6
+
+
+def same_clip(frame_dist: float, speech_sim: float, speech_a: str | None, speech_b: str | None,
+              visual_sim: float | None = None) -> bool:
+    """The rule, from the duplicates actually found in the library (frame_dist: picture
+    hash, low = alike; visual_sim: CLIP, high = alike, survives zoom and crop):
+    - both talk:      same words and similar footage; mostly the same words and the same
+                      footage; or identical footage unless the words are clearly different
+    - neither talks:  the same picture hash, strictly (the same animal footage with a
+                      laugh or a shout dubbed on is two memes, and silent clips give no
+                      words to tell them apart)
+    - one talks:      a different soundtrack over the footage is a different meme
+    Same words over different footage is a reused sound, also a different meme."""
+    v = visual_sim if visual_sim is not None else -1.0
+    talk_a, talk_b = real_speech(speech_a), real_speech(speech_b)
+    if talk_a and talk_b:
+        return (speech_sim >= SAME_SPEECH and (frame_dist <= SIMILAR_PICTURE or v >= SIMILAR_FOOTAGE)) or \
+               (speech_sim >= MOSTLY_SAME_SPEECH and v >= SAME_FOOTAGE) or \
+               (speech_sim >= DIFFERENT_SPEECH and (frame_dist <= SAME_PICTURE or v >= IDENTICAL_FOOTAGE))
+    if not talk_a and not talk_b:
+        return frame_dist <= SAME_PICTURE
+    return False
