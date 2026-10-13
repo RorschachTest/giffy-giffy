@@ -85,21 +85,33 @@ def load_meta(sidecar: Path | None) -> dict:
 # --------------------------------------------------------------------------- #
 
 def find_duplicate(conn, sha: str, phash: list[int] | None, duration: float) -> int | None:
+    """The exact same file. Look-alikes are checked after speech to text (find_same_clip),
+    because deciding needs both the picture and the words."""
     row = conn.execute("SELECT id FROM clips WHERE sha256 = %s", (sha,)).fetchone()
-    if row:
-        return row["id"]
-    if phash is None:
-        return None
-    # A plain scan is fine up to tens of thousands of clips.
-    candidates = conn.execute(
-        "SELECT id, phash FROM clips WHERE abs(duration - %s) <= %s",
-        (duration, config.DEDUP_MAX_DURATION_DIFF),
+    return row["id"] if row else None
+
+
+def duration_tolerance(duration: float) -> float:
+    return max(config.DEDUP_MAX_DURATION_DIFF, config.DEDUP_MAX_DURATION_SHARE * duration)
+
+
+def find_same_clip(conn, phash: list[int], roman: str, duration: float) -> int | None:
+    """A clip of about the same length that media.same_clip says is this one
+    (re-encoded, letterboxed, watermarked or trimmed). Best match first."""
+    mine = [h for h in phash if media.informative_hash(h)]
+    rows = conn.execute(
+        """SELECT id, phash, transcript_roman, similarity(coalesce(transcript_roman, ''), %(t)s) AS s
+             FROM clips WHERE duplicate_of IS NULL AND abs(duration - %(d)s) <= %(tol)s""",
+        {"t": roman or "", "d": duration, "tol": duration_tolerance(duration)},
     ).fetchall()
-    best_id, best = None, float(config.DEDUP_MAX_HAMMING)
-    for c in candidates:
-        d = media.mean_hamming(phash, c["phash"])
-        if d <= best:
-            best_id, best = c["id"], d
+    best_id, best = None, None
+    for r in rows:
+        theirs = [h for h in (r["phash"] or []) if media.informative_hash(h)]
+        fd = media.frame_distance(mine, theirs) if mine and theirs else 64.0
+        if media.same_clip(fd, float(r["s"]), roman, r["transcript_roman"]):
+            rank = fd - 10 * float(r["s"])
+            if best is None or rank < best:
+                best_id, best = r["id"], rank
     return best_id
 
 
@@ -170,10 +182,6 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
         frames = media.extract_keyframes(video, tmp, info.duration, config.KEYFRAMES)
         phash = [media.dhash(f) for f in frames]
 
-        dup = find_duplicate(conn, sha, phash, info.duration)
-        if dup:
-            merge_duplicate(conn, dup, meta)
-            return {"status": "duplicate", "clip_id": dup, "match": "near"}
 
         try:
             # --- web-ready copy -------------------------------------------------
@@ -205,6 +213,12 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
             roman = to_roman(native) if has_devanagari(native) else native
             if not native:
                 reasons.append("no_speech")
+            same = find_same_clip(conn, phash, roman, info.duration)
+            if same:                              # re-encoded, letterboxed, watermarked or trimmed copy
+                for p in written:
+                    p.unlink(missing_ok=True)
+                merge_duplicate(conn, same, meta)
+                return {"status": "duplicate", "clip_id": same, "match": "near"}
 
             # --- the record -----------------------------------------------------
             clip_id = conn.execute(

@@ -94,8 +94,13 @@ FACE_MIN_DET_SCORE = float(os.getenv("FACE_MIN_DET_SCORE", "0.6"))
 FACE_MIN_SIZE = int(os.getenv("FACE_MIN_SIZE", "40"))                     # pixels
 
 # Duplicate detection
-DEDUP_MAX_HAMMING = int(os.getenv("DEDUP_MAX_HAMMING", "6"))   # of 64 bits, averaged over frames
-DEDUP_MAX_DURATION_DIFF = float(os.getenv("DEDUP_MAX_DURATION_DIFF", "0.7"))
+# Re-uploads are often trimmed or padded: lengths may differ by this many seconds,
+# or by DEDUP_MAX_DURATION_SHARE of the clip, whichever is more.
+DEDUP_MAX_DURATION_DIFF = float(os.getenv("DEDUP_MAX_DURATION_DIFF", "1.5"))
+DEDUP_MAX_DURATION_SHARE = float(os.getenv("DEDUP_MAX_DURATION_SHARE", "0.15"))
+# Shorter transcripts are not compared as speech (too common). The same-clip rule itself
+# (picture and speech thresholds) is media.same_clip.
+DEDUP_MIN_SPEECH_CHARS = int(os.getenv("DEDUP_MIN_SPEECH_CHARS", "20"))   # shorter lines are too common
 
 # Ranking weights
 W_KEYWORD = float(os.getenv("W_KEYWORD", "0.65"))

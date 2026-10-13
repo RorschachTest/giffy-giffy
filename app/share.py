@@ -50,7 +50,8 @@ def _clip(share_id: str) -> dict:
         row = conn.execute(
             """SELECT id, left(sha256, 10) AS share_id, file, thumb, duration, width, height,
                       title, folk_names, transcript_roman, use_when, reactions, people, source_urls
-                 FROM clips WHERE left(sha256, 10) = %s""",
+                 FROM clips
+                WHERE id = (SELECT coalesce(duplicate_of, id) FROM clips WHERE left(sha256, 10) = %s)""",
             (share_id,),
         ).fetchone()
     if row is None:
