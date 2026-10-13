@@ -128,7 +128,13 @@ LEARN_FROM_SHARES = os.getenv("LEARN_FROM_SHARES", "0") == "1"
 # A clip is shown only if it clears at least one of these. Below them a "match" is
 # just letter-overlap noise. Starting values: tune them against your own test queries.
 MIN_KEYWORD = float(os.getenv("MIN_KEYWORD", "0.35"))
-MIN_SEMANTIC = float(os.getenv("MIN_SEMANTIC", "0.45"))
+MIN_SEMANTIC = float(os.getenv("MIN_SEMANTIC", "0.45"))   # only for libraries under SEMANTIC_Z_MIN_CLIPS
+# A meaning-only match must stand out from how the whole library scores for that query
+# (standard deviations above the mean). Measured on 2.5k clips: nonsense queries top out
+# at z 2.4-2.7; "salary day already feeling gareeb" 3.0-3.7, "feeling sad after breakup"
+# 3.9-4.7, "who are these people" 3.4-5.2.
+MIN_SEMANTIC_Z = float(os.getenv("MIN_SEMANTIC_Z", "2.9"))
+SEMANTIC_Z_MIN_CLIPS = int(os.getenv("SEMANTIC_Z_MIN_CLIPS", "200"))
 # Topic / mood match between the query (Laya) and the clip's topics + reactions.
 W_TOPIC = float(os.getenv("W_TOPIC", "0.25"))
 MIN_TOPIC = float(os.getenv("MIN_TOPIC", "0.5"))

@@ -13,7 +13,8 @@ score          W_KEYWORD * kw + W_SEMANTIC * sem + W_TOPIC * tm * (1 - kw)
                + small popularity bonus. The topic boost only fills the gap the
                words leave: "kya karu main" names one clip, and a different clip
                with the same mood must not overtake it.
-shown if       kw >= MIN_KEYWORD or sem >= MIN_SEMANTIC or tm >= MIN_TOPIC
+shown if       kw >= MIN_KEYWORD or tm >= MIN_TOPIC, or the meaning match stands out from the
+               library (z >= MIN_SEMANTIC_Z; below SEMANTIC_Z_MIN_CLIPS clips: sem >= MIN_SEMANTIC)
 
 The weights are guesses until they are tuned against real queries. /search
 returns kw and sem for every hit so you can see why something ranked.
@@ -34,6 +35,13 @@ SEARCH_SQL = f"""
 WITH q AS (
     SELECT %(qn)s::text AS qn, %(qv)s::vector AS qv, %(tokens)s::text[] AS tokens,
            %(qt)s::text[] AS qt, %(qw)s::real[] AS qw
+),
+-- how the whole library scores against this query: a meaning match must STAND OUT from
+-- it, since raw similarities are not comparable across queries (nonsense like "xyzzy
+-- qwfp" scored 0.49, above the real "salary day already feeling gareeb" at 0.40)
+lib AS (
+    SELECT count(*) AS n, avg(1 - (c.embedding <=> q.qv)) AS m, stddev_pop(1 - (c.embedding <=> q.qv)) AS sd
+      FROM clips c, q WHERE c.embedding IS NOT NULL AND c.duplicate_of IS NULL
 ),
 candidates AS (
     (SELECT c.id FROM clips c, q
@@ -67,15 +75,23 @@ scored AS (
            ) AS kw,
            CASE WHEN c.embedding IS NULL THEN 0
                 ELSE GREATEST(0, 1 - (c.embedding <=> q.qv)) END AS sem,
+           CASE WHEN c.embedding IS NULL OR coalesce(lib.sd, 0) = 0 THEN 0
+                ELSE ((1 - (c.embedding <=> q.qv)) - lib.m) / lib.sd END AS sem_z,
+           lib.n AS lib_n,
            LEAST(1, COALESCE((SELECT sum(x.w) FROM unnest(q.qt, q.qw) AS x(t, w)
                                WHERE x.t = ANY(c.topics) OR x.t = ANY(c.reactions)), 0)) AS tm
-      FROM clips c JOIN candidates USING (id), q
+      FROM clips c JOIN candidates USING (id), q, lib
 )
 SELECT {COLUMNS}, kw, sem, tm,
        %(wk)s * kw + %(ws)s * sem + %(wt)s * tm * (1 - LEAST(kw, 1))
          + %(wp)s * LEAST(ln(%(learn)s * shares + duplicates_seen), 3) AS score
   FROM scored
- WHERE duplicate_of IS NULL AND (kw >= %(min_kw)s OR sem >= %(min_sem)s OR tm >= %(min_tm)s)
+ WHERE duplicate_of IS NULL
+   AND (kw >= %(min_kw)s OR tm >= %(min_tm)s
+        -- big libraries: the clip must stand out; tiny ones (tests, a fresh install) cannot
+        -- produce large z-scores, so they keep the plain similarity floor
+        OR (lib_n >= %(z_min_clips)s AND sem_z >= %(min_sem_z)s)
+        OR (lib_n < %(z_min_clips)s AND sem >= %(min_sem)s))
  ORDER BY score DESC, id
  LIMIT %(limit)s OFFSET %(offset)s
 """
@@ -136,6 +152,7 @@ def search(conn, query: str, limit: int = 24, log_query: bool = True, intent: di
         "wk": config.W_KEYWORD, "ws": config.W_SEMANTIC, "wt": config.W_TOPIC,
         "wp": config.W_POPULARITY, "learn": 1 if config.LEARN_FROM_SHARES else 0,
         "min_kw": config.MIN_KEYWORD, "min_sem": config.MIN_SEMANTIC,
+        "min_sem_z": config.MIN_SEMANTIC_Z, "z_min_clips": config.SEMANTIC_Z_MIN_CLIPS,
         "min_tm": config.MIN_TOPIC, "limit": limit, "offset": offset,
     }).fetchall()
     if log_query:
