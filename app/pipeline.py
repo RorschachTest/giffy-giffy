@@ -95,20 +95,25 @@ def duration_tolerance(duration: float) -> float:
     return max(config.DEDUP_MAX_DURATION_DIFF, config.DEDUP_MAX_DURATION_SHARE * duration)
 
 
-def find_same_clip(conn, phash: list[int], roman: str, duration: float) -> int | None:
+def find_same_clip(conn, phash: list[int], roman: str, duration: float,
+                   visual: list[float] | None = None) -> int | None:
     """A clip of about the same length that media.same_clip says is this one
-    (re-encoded, letterboxed, watermarked or trimmed). Best match first."""
+    (re-encoded, letterboxed, zoomed, watermarked or trimmed). Best match first."""
     mine = [h for h in phash if media.informative_hash(h)]
     rows = conn.execute(
-        """SELECT id, phash, transcript_roman, similarity(coalesce(transcript_roman, ''), %(t)s) AS s
+        """SELECT id, phash, transcript_roman, similarity(coalesce(transcript_roman, ''), %(t)s) AS s,
+                  CASE WHEN %(v)s::vector IS NULL OR visual IS NULL THEN NULL
+                       ELSE 1 - (visual <=> %(v)s::vector) END AS vis
              FROM clips WHERE duplicate_of IS NULL AND abs(duration - %(d)s) <= %(tol)s""",
-        {"t": roman or "", "d": duration, "tol": duration_tolerance(duration)},
+        {"t": roman or "", "d": duration, "tol": duration_tolerance(duration),
+         "v": str(visual) if visual else None},
     ).fetchall()
     best_id, best = None, None
     for r in rows:
         theirs = [h for h in (r["phash"] or []) if media.informative_hash(h)]
         fd = media.frame_distance(mine, theirs) if mine and theirs else 64.0
-        if media.same_clip(fd, float(r["s"]), roman, r["transcript_roman"]):
+        vis = float(r["vis"]) if r["vis"] is not None else None
+        if media.same_clip(fd, float(r["s"]), roman, r["transcript_roman"], vis):
             rank = fd - 10 * float(r["s"])
             if best is None or rank < best:
                 best_id, best = r["id"], rank
@@ -213,7 +218,13 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
             roman = to_roman(native) if has_devanagari(native) else native
             if not native:
                 reasons.append("no_speech")
-            same = find_same_clip(conn, phash, roman, info.duration)
+            visual = None
+            if config.ENABLE_VIBE:          # CLIP is already loaded for moods; also catches zoomed reposts
+                try:
+                    visual = vibe.visual_vector(frames)
+                except Exception:
+                    log.exception("no visual vector for %s", video.name)
+            same = find_same_clip(conn, phash, roman, info.duration, visual)
             if same:                              # re-encoded, letterboxed, watermarked or trimmed copy
                 for p in written:
                     p.unlink(missing_ok=True)
@@ -247,6 +258,8 @@ def process_clip(conn, video: Path, sidecar: Path | None = None) -> dict:
                     "topics": meta["topics"],
                 },
             ).fetchone()["id"]
+            if visual:
+                conn.execute("UPDATE clips SET visual = %s::vector WHERE id = %s", (str(visual), clip_id))
 
             # --- who is in it ---------------------------------------------------
             people = {name: "sidecar" for name in meta["people"]}

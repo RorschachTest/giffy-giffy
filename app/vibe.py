@@ -192,6 +192,16 @@ def face_scores(frames: list[Path], faces_per_frame: list[list[dict]]) -> tuple[
     return ({m: round(v / n, 3) for m, v in totals.items()} if n else {}), n
 
 
+def visual_vector(frames: list[Path]) -> list[float] | None:
+    """What the footage looks like: the CLIP image vector averaged over the keyframes."""
+    if not frames:
+        return None
+    img_model, _ = _clip()
+    vecs = [_unit(list(v)) for v in img_model.embed([str(f) for f in frames])]
+    mean = [sum(xs) / len(vecs) for xs in zip(*vecs)]
+    return _unit(mean)
+
+
 def scene_scores(frames: list[Path]) -> dict[str, float]:
     """CLIP zero-shot: per frame a softmax over the mood sentences, averaged."""
     if not frames:

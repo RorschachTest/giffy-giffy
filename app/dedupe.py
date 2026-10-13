@@ -3,6 +3,8 @@
     python -m app.dedupe              list duplicate groups (changes nothing)
     python -m app.dedupe --rehash     first recompute the picture hashes from the stored web
                                       copies with black bars trimmed (ffmpeg only, no models)
+    python -m app.dedupe --visual     first store a CLIP vector of the footage for clips that
+                                      have none (survives zoom and crop; reads keyframes only)
     python -m app.dedupe --apply      merge each group: the best copy stays; the others point
                                       at it (clips.duplicate_of), give it their titles, links,
                                       share and seen counts, and drop out of search
@@ -60,17 +62,32 @@ def candidate_pairs(conn) -> dict[tuple[int, int], dict]:
         if key not in pairs:
             ha, hb = hashes[r["a"]], hashes[r["b"]]
             pairs[key] = {"frames": media.frame_distance(ha, hb) if ha and hb else 64.0}
+    for r in conn.execute(                              # same footage (zoomed, cropped, watermarked)
+            """SELECT a.id AS a, b.id AS b FROM clips a JOIN clips b ON a.id < b.id
+                WHERE a.duplicate_of IS NULL AND b.duplicate_of IS NULL
+                  AND a.visual IS NOT NULL AND b.visual IS NOT NULL
+                  AND abs(a.duration - b.duration) <= greatest(%(diff)s, %(share)s * least(a.duration, b.duration))
+                  AND 1 - (a.visual <=> b.visual) >= %(vis)s""",
+            {"diff": config.DEDUP_MAX_DURATION_DIFF, "share": config.DEDUP_MAX_DURATION_SHARE,
+             "vis": media.SIMILAR_FOOTAGE}).fetchall():
+        key = (r["a"], r["b"])
+        if key not in pairs:
+            ha, hb = hashes[r["a"]], hashes[r["b"]]
+            pairs[key] = {"frames": media.frame_distance(ha, hb) if ha and hb else 64.0}
     if pairs:                                           # speech similarity for every candidate
         keys = list(pairs)
         for r in conn.execute(
-                """SELECT p.a, p.b, similarity(coalesce(ca.transcript_roman, ''), coalesce(cb.transcript_roman, '')) AS s
+                """SELECT p.a, p.b, similarity(coalesce(ca.transcript_roman, ''), coalesce(cb.transcript_roman, '')) AS s,
+                          CASE WHEN ca.visual IS NULL OR cb.visual IS NULL THEN NULL
+                               ELSE 1 - (ca.visual <=> cb.visual) END AS vis
                      FROM unnest(%s::bigint[], %s::bigint[]) AS p(a, b)
                      JOIN clips ca ON ca.id = p.a JOIN clips cb ON cb.id = p.b""",
                 ([a for a, _ in keys], [b for _, b in keys])).fetchall():
             pairs[(r["a"], r["b"])]["speech"] = float(r["s"])
+            pairs[(r["a"], r["b"])]["visual"] = float(r["vis"]) if r["vis"] is not None else None
     for (a, b), m in pairs.items():
         m["same"] = media.same_clip(m["frames"], m.get("speech", 0.0),
-                                    info[a]["transcript_roman"], info[b]["transcript_roman"])
+                                    info[a]["transcript_roman"], info[b]["transcript_roman"], m.get("visual"))
     return pairs
 
 
@@ -169,6 +186,29 @@ def rehash() -> None:
         print(f"rehash: {len(failed)} skipped: {failed[:20]}", file=sys.stderr)
 
 
+def store_visual() -> None:
+    """A CLIP vector of the footage for every clip without one (keyframes only, no video model)."""
+    from . import vibe
+
+    with db.session() as conn:
+        rows = conn.execute("SELECT id, file, duration FROM clips WHERE visual IS NULL AND duplicate_of IS NULL ORDER BY id").fetchall()
+    failed = []
+    for n, r in enumerate(rows, 1):
+        try:
+            with tempfile.TemporaryDirectory(prefix="memeclip_") as tmp, storage.local_copy(r["file"]) as f:
+                v = vibe.visual_vector(media.extract_keyframes(f, Path(tmp), r["duration"], config.KEYFRAMES))
+            if v:
+                with db.session() as conn:
+                    conn.execute("UPDATE clips SET visual = %s::vector WHERE id = %s", (str(v), r["id"]))
+        except Exception as exc:   # one bad clip must not stop the rest
+            failed.append(r["id"])
+            print(f"visual: clip {r['id']} SKIPPED: {exc}", file=sys.stderr)
+        if n % 100 == 0 or n == len(rows):
+            print(f"visual: {n}/{len(rows)}", flush=True)
+    if failed:
+        print(f"visual: {len(failed)} skipped: {failed[:20]}", file=sys.stderr)
+
+
 def main() -> int:
     db.init_db()
     if "--undo" in sys.argv:
@@ -177,6 +217,8 @@ def main() -> int:
         return 0
     if "--rehash" in sys.argv:
         rehash()
+    if "--visual" in sys.argv:
+        store_visual()
     with db.session() as conn:
         found = groups(conn)
         titles = {r["id"]: (r["title"] or "(untitled)", r["duration"]) for r in conn.execute(
