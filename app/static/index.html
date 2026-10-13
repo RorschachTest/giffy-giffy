@@ -50,6 +50,7 @@
       <button class="tab" id="tab-search" type="button" aria-pressed="true">Library</button>
       <button class="tab" id="tab-review" type="button" aria-pressed="false">Needs review</button>
       <button class="tab" id="tab-failed" type="button" aria-pressed="false">Not found</button>
+      <button class="tab" id="tab-faces" type="button" aria-pressed="false">Faces</button>
     </div>
     <div class="quick" id="quick" aria-label="Quick searches"></div>
     <p id="status" role="status" aria-live="polite"></p>
@@ -577,11 +578,96 @@ async function loadMore() {
   if (moreObserver && browsing() && browse.next && nearBottom()) loadMore();
 }
 
+// ---- Curate > Faces: people found in the clips, like a photo app's "People" ----------
+// Groups come from the face vectors already stored for every processed clip (no
+// reprocessing). Naming a group gives all its faces that name; giving a second group
+// the same name merges it into the same person.
+function faceTile(title, sub, picture, onclick) {
+  const b = el("button", "face-tile"); b.type = "button";
+  const pic = el("span", "face-pic");
+  if (picture) { const img = el("img"); img.src = picture; img.alt = ""; img.loading = "lazy"; pic.append(img); }
+  b.append(pic, el("span", "face-name", title), el("span", "face-sub", sub));
+  b.onclick = onclick;
+  return b;
+}
+
+async function runFaces() {
+  $("grid").replaceChildren();
+  $("status").textContent = "Looking for faces…";
+  try {
+    const data = await api("/faces");
+    const wrap = el("div", "faces");
+    if (data.people.length) {
+      wrap.append(el("h3", "faces-head", "Named"));
+      const row = el("div", "face-grid");
+      for (const p of data.people)
+        row.append(faceTile(p.name, `${p.clips} clip${p.clips === 1 ? "" : "s"}`, p.picture, () => openFaces({ person: p })));
+      wrap.append(row);
+    }
+    wrap.append(el("h3", "faces-head", "Who's this?"));
+    const row = el("div", "face-grid");
+    for (const g of data.groups)
+      row.append(faceTile(`${g.clips} clip${g.clips === 1 ? "" : "s"}`, `${g.faces} face${g.faces === 1 ? "" : "s"}`,
+                          g.pictures[0], () => openFaces({ group: g })));
+    wrap.append(row);
+    $("table").replaceChildren(wrap);
+    $("status").textContent = `${data.people.length} named · ${data.unknown_groups} groups of unknown faces, most clips first. ` +
+                              "One person can show up as two groups: give both the same name to merge them.";
+  } catch (e) { $("status").textContent = `Could not load faces: ${e.message}`; }
+}
+
+async function openFaces({ person, group }) {
+  const data = await api(person ? `/faces/clips?person_id=${person.id}` : `/faces/clips?face_ids=${group.face_ids.join(",")}`);
+  showCards(data.results, [el("span", "", person ? `${person.name} · ${data.count} clip${data.count === 1 ? "" : "s"}`
+                                               : `${data.count} clip${data.count === 1 ? "" : "s"} with this face`)],
+            "No clips", "These faces have no clips any more.");
+  const form = el("form", "face-form");
+  const back = el("button", "cta ghost", "← All faces"); back.type = "button";
+  back.onclick = () => { form.remove(); runFaces(); };
+  const names = el("datalist"); names.id = "people-names";
+  const known = await api("/faces").then((d) => d.people).catch(() => []);
+  for (const p of known) { const o = el("option"); o.value = p.name; names.append(o); }
+  const name = el("input"); name.type = "text"; name.placeholder = "Who is this? (an existing name merges)";
+  name.setAttribute("list", "people-names"); name.setAttribute("aria-label", "Name"); name.autocomplete = "off";
+  const aliases = el("input"); aliases.type = "text"; aliases.autocomplete = "off";
+  aliases.placeholder = "Also called, comma separated: modi, PM";
+  aliases.setAttribute("aria-label", "Other names, comma separated");
+  const save = el("button", "cta light", person ? "Add names" : "Save name"); save.type = "submit";
+  const msg = el("span", "face-msg"); msg.setAttribute("role", "status");
+  if (person) {
+    name.value = person.name; name.disabled = true;
+    if (person.aliases?.length) msg.textContent = `Also called: ${person.aliases.join(", ")}`;
+  }
+  form.append(back, name, aliases, save, names, msg);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const list = aliases.value.split(",").map((s) => s.trim()).filter(Boolean);
+    if (!person && !name.value.trim()) { msg.textContent = "Type a name first."; name.focus(); return; }
+    if (person && !list.length) { msg.textContent = "Type at least one other name."; aliases.focus(); return; }
+    save.disabled = true;
+    try {
+      const r = person
+        ? await api(`/people/${person.id}/aliases`, { method: "POST", headers: { "Content-Type": "application/json" },
+                                                     body: JSON.stringify({ aliases: list }) })
+        : await api("/faces/name", { method: "POST", headers: { "Content-Type": "application/json" },
+                                     body: JSON.stringify({ face_ids: group.face_ids, name: name.value.trim(), aliases: list }) });
+      msg.textContent = person ? `Saved. Also called: ${r.aliases.join(", ")}` : `Named ${r.name}: ${r.clips_updated} clip${r.clips_updated === 1 ? "" : "s"} updated.`;
+      if (!person) setTimeout(() => { form.remove(); runFaces(); }, 900);
+    } catch (err) { msg.textContent = `Could not save: ${err.message}`; }
+    finally { save.disabled = false; }
+  };
+  document.querySelector(".face-form")?.remove();
+  $("grid").before(form);                         // above the clips, not under all of them
+  form.scrollIntoView({ block: "center", behavior: smooth() });
+  (person ? aliases : name).focus({ preventScroll: true });
+}
+
 function setMode(next) {
   mode = next;
+  document.querySelector(".face-form")?.remove();   // the naming bar belongs to one opened group
   $("more").hidden = $("end").hidden = true;
-  for (const m of ["search", "review", "failed"]) $("tab-" + m).setAttribute("aria-pressed", String(m === mode));
-  ({ search: runSearch, review: runReview, failed: runFailed })[mode]();
+  for (const m of ["search", "review", "failed", "faces"]) $("tab-" + m).setAttribute("aria-pressed", String(m === mode));
+  ({ search: runSearch, review: runReview, failed: runFailed, faces: runFaces })[mode]();
 }
 
 function setCurate(on) {
@@ -645,7 +731,7 @@ for (const word of QUICK) {
 $("open-upload").onclick = () => $("upload").showModal();
 $("curate").onclick = () => setCurate(!document.body.classList.contains("curate"));
 for (const b of document.querySelectorAll("[data-close]")) b.onclick = () => b.closest("dialog").close();
-for (const m of ["search", "review", "failed"]) $("tab-" + m).onclick = () => setMode(m);
+for (const m of ["search", "review", "failed", "faces"]) $("tab-" + m).onclick = () => setMode(m);
 $("more").onclick = loadMore;
 $("q").oninput = () => { clearTimeout(timer); timer = setTimeout(() => setMode("search"), 350); };
 const smooth = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");

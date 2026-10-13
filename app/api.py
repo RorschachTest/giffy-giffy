@@ -32,7 +32,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import config, db, indexing, intent, laya, search as search_mod, share as share_mod, storage, understand as und
+from . import config, db, faces, indexing, intent, laya, search as search_mod, share as share_mod, storage, understand as und
 from .embed import get_embedder
 
 STATIC = Path(__file__).with_name("static")
@@ -199,6 +199,95 @@ def patch_clip(clip_id: int, patch: ClipPatch, request: Request) -> dict:
             raise HTTPException(404, "no such clip")
         indexing.refresh(conn, clip_id)
     return get_clip(clip_id, request)
+
+
+# --------------------------------------------------------------------------- #
+# Faces (Curate > Faces): who appears in which clips, and naming unknown faces
+# --------------------------------------------------------------------------- #
+
+def _crop_url(key: str | None) -> str | None:
+    return f"/media/{key}" if key else None
+
+
+@app.get("/faces")
+def face_overview(limit: int = 120) -> dict:
+    """Named people, then groups of unknown faces that probably are one person each
+    (most clips first). A group's face_ids are what /faces/clips and /faces/name take."""
+    with db.session() as conn:
+        people = faces.known_people(conn)
+        every = faces.face_groups(conn)
+        groups = every[:max(1, min(limit, 500))]
+        # Faces stored before face pictures existed have none: show their clips' thumbnails
+        # instead (no reprocessing needed; reindex --face-crops can add close-ups later).
+        want = {c for g in groups for c in g["clips"][:4]}
+        thumbs = {r["id"]: r["thumb"] for r in conn.execute(
+            "SELECT id, thumb FROM clips WHERE id = ANY(%s)", (list(want),)).fetchall()}
+    for g in groups:
+        g["pictures"] = g["crops"] or [thumbs.get(c) for c in g["clips"][:4] if thumbs.get(c)]
+    return {
+        "people": [{"id": p["id"], "name": p["name"], "aliases": p["aliases"], "clips": p["clips"],
+                    "picture": _crop_url(p["crop"] or p["thumb"])} for p in people],
+        "groups": [{"id": g["id"], "face_ids": g["face_ids"], "clips": len(g["clips"]),
+                    "faces": len(g["face_ids"]), "close_up": bool(g["crops"]),
+                    "pictures": [_crop_url(k) for k in g["pictures"]]}
+                   for g in groups],
+        "unknown_groups": len(every),
+    }
+
+
+@app.get("/faces/clips")
+def face_clips(request: Request, face_ids: str = "", person_id: int | None = None) -> dict:
+    """The clips a group of faces (comma-separated ids) or a named person appears in."""
+    ids = [int(x) for x in face_ids.split(",") if x.strip().isdigit()][:2000]
+    if not ids and person_id is None:
+        raise HTTPException(400, "give face_ids or person_id")
+    with db.session() as conn:
+        rows = conn.execute(
+            f"""SELECT {search_mod.COLUMNS}, NULL::real AS kw, NULL::real AS sem, NULL::real AS score
+                  FROM clips WHERE id IN (SELECT clip_id FROM clip_faces
+                                           WHERE id = ANY(%(ids)s) OR person_id = %(pid)s)
+                 ORDER BY {search_mod.BROWSE_ORDER}""",
+            {"ids": ids, "pid": person_id},
+        ).fetchall()
+    return {"count": len(rows), "results": [_public(r, request) for r in rows]}
+
+
+class NameFacesBody(BaseModel):
+    face_ids: list[int]
+    name: str
+    aliases: list[str] = []       # other names for the same person: "modi", "PM"
+
+
+@app.post("/faces/name")
+def name_face_group(body: NameFacesBody) -> dict:
+    """Say who a group of faces is. The same name on two groups merges them into one person."""
+    with db.session() as conn:
+        try:
+            person_id, changed = faces.name_faces(conn, body.face_ids, body.name, body.aliases)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+        for clip_id in changed:
+            indexing.refresh(conn, clip_id, embed=False)
+    return {"person_id": person_id, "name": body.name.strip(), "clips_updated": len(changed)}
+
+
+class AliasesBody(BaseModel):
+    aliases: list[str]
+
+
+@app.post("/people/{person_id}/aliases")
+def add_person_aliases(person_id: int, body: AliasesBody) -> dict:
+    """More names for a known person; every clip of theirs becomes findable by them."""
+    with db.session() as conn:
+        try:
+            aliases = faces.add_aliases(conn, person_id, body.aliases)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from None
+        name = conn.execute("SELECT name FROM people WHERE id = %s", (person_id,)).fetchone()["name"]
+        changed = faces.clips_of(conn, name)
+        for clip_id in changed:
+            indexing.refresh(conn, clip_id, embed=False)
+    return {"person_id": person_id, "aliases": aliases, "clips_updated": len(changed)}
 
 
 @app.get("/review")

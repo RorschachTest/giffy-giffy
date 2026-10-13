@@ -139,13 +139,16 @@ def match_embedding(conn, embedding: list[float]) -> dict | None:
     return None
 
 
-def record_faces(conn, clip_id: int, faces_per_frame: list[list[dict]]) -> dict:
-    """Store every face seen in the clip and return who was recognised.
+def record_faces(conn, clip_id: int, faces_per_frame: list[list[dict]],
+                 frames: list[Path] | None = None) -> dict:
+    """Store every face seen in the clip and return who was recognised. With the
+    keyframes given, a small picture of each face is saved too (for the Faces view).
 
-    Returns {"people": {name: best_score}, "faces": n, "unknown": n}
+    Returns {"people": {name: best_score}, "faces": n, "unknown": n, "crops": [storage keys]}
     """
     people: dict[str, float] = {}
     total = unknown = 0
+    crops: list[str] = []
     for frame_no, faces in enumerate(faces_per_frame):
         for face in faces:
             total += 1
@@ -154,13 +157,46 @@ def record_faces(conn, clip_id: int, faces_per_frame: list[list[dict]]) -> dict:
                 people[hit["name"]] = max(people.get(hit["name"], 0.0), float(hit["score"]))
             else:
                 unknown += 1
-            conn.execute(
+            face_id = conn.execute(
                 """INSERT INTO clip_faces (clip_id, frame, person_id, score, embedding)
-                   VALUES (%s, %s, %s, %s, %s::vector)""",
+                   VALUES (%s, %s, %s, %s, %s::vector) RETURNING id""",
                 (clip_id, frame_no, hit["person_id"] if hit else None,
                  hit["score"] if hit else None, vec(face["embedding"])),
-            )
-    return {"people": people, "faces": total, "unknown": unknown}
+            ).fetchone()["id"]
+            if frames and face.get("bbox"):
+                key = save_crop(conn, face_id, frames[frame_no], face["bbox"])
+                if key:
+                    crops.append(key)
+    return {"people": people, "faces": total, "unknown": unknown, "crops": crops}
+
+
+CROP_SIZE = 160      # px, square
+CROP_MARGIN = 0.35   # extra room around the detected box, so hair and chin show
+
+
+def save_crop(conn, face_id: int, frame: Path, bbox: list[float]) -> str | None:
+    """Cut the face out of its keyframe, store it as face-<id>.jpg, remember the key.
+    A failure only means the face has no picture; it never fails the clip."""
+    from PIL import Image
+
+    from . import storage
+    try:
+        with Image.open(frame) as img:
+            x1, y1, x2, y2 = bbox
+            side = max(x2 - x1, y2 - y1) * (1 + CROP_MARGIN)
+            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+            box = (max(0, cx - side / 2), max(0, cy - side / 2),
+                   min(img.width, cx + side / 2), min(img.height, cy + side / 2))
+            face = img.convert("RGB").crop(tuple(int(v) for v in box)).resize((CROP_SIZE, CROP_SIZE))
+            path = config.MEDIA_DIR / f"face-{face_id}.jpg"
+            face.save(path, "JPEG", quality=85)
+        key = storage.save(path)
+        conn.execute("UPDATE clip_faces SET crop = %s WHERE id = %s", (key, face_id))
+        return key
+    except Exception as exc:   # noqa: BLE001
+        import logging
+        logging.getLogger("faces").warning("no face picture for face %s: %s", face_id, exc)
+        return None
 
 
 def people_in_text(conn, text: str) -> list[str]:
@@ -177,6 +213,22 @@ def people_in_text(conn, text: str) -> list[str]:
                 found.append(row["name"])
                 break
     return found
+
+
+def add_aliases(conn, person_id: int, aliases: list[str]) -> list[str]:
+    """Other names for the same person ("modi", "PM"), added to the ones already there.
+    Search finds every clip of the person by any of them. Returns the full list."""
+    clean = [a.strip() for a in aliases if a and a.strip()]
+    row = conn.execute(
+        """UPDATE people SET aliases = ARRAY(SELECT DISTINCT unnest(aliases || %s::text[]) ORDER BY 1)
+            WHERE id = %s RETURNING name, aliases""", (clean, person_id)).fetchone()
+    if row is None:
+        raise ValueError(f"no person with id {person_id}")
+    return [a for a in row["aliases"] if a.lower() != row["name"].lower()]
+
+
+def clips_of(conn, name: str) -> list[int]:
+    return [r["id"] for r in conn.execute("SELECT id FROM clips WHERE %s = ANY(people)", (name,)).fetchall()]
 
 
 def aliases_for(conn, names: list[str]) -> list[str]:
@@ -221,6 +273,108 @@ def unknown_clusters(conn, threshold: float = 0.5) -> list[dict]:
         {"face_id": c["face_id"], "faces": c["faces"], "clips": sorted(c["clips"])}
         for c in sorted(clusters, key=lambda c: -len(c["clips"]))
     ]
+
+
+def face_groups(conn, threshold: float | None = None) -> list[dict]:
+    """Unknown faces grouped into probable people, like a photo app's "People".
+
+    Greedy and quick: each face joins the closest group whose AVERAGE face is within
+    `threshold`, and that average moves as faces join (so a group follows its
+    person instead of its first photo). The same person can still end up as two
+    groups; naming both with one name merges them (name_faces).
+    """
+    import numpy as np
+
+    threshold = config.FACE_GROUP_THRESHOLD if threshold is None else threshold
+    rows = conn.execute(
+        """SELECT id, clip_id, crop, embedding::text AS e FROM clip_faces
+            WHERE person_id IS NULL ORDER BY id"""
+    ).fetchall()
+    if not rows:
+        return []
+    vecs = np.array([_parse_vec(r["e"]) for r in rows], dtype=np.float32)
+    vecs /= np.linalg.norm(vecs, axis=1, keepdims=True) + 1e-9
+    sums: list[np.ndarray] = []      # running sum per group; its direction is the average face
+    members: list[list[int]] = []
+    centres = np.zeros((0, vecs.shape[1]), dtype=np.float32)
+    for i, v in enumerate(vecs):
+        if len(sums):
+            sims = centres @ v
+            best = int(sims.argmax())
+            if sims[best] >= threshold:
+                members[best].append(i)
+                sums[best] += v
+                centres[best] = sums[best] / (np.linalg.norm(sums[best]) + 1e-9)
+                continue
+        sums.append(v.copy())
+        members.append([i])
+        centres = np.vstack([centres, v])
+    groups = []
+    for idx in members:
+        faces_ = [rows[i] for i in idx]
+        clips = sorted({f["clip_id"] for f in faces_})
+        groups.append({
+            "id": faces_[0]["id"],
+            "face_ids": [f["id"] for f in faces_],
+            "clips": clips,
+            "crops": [f["crop"] for f in faces_ if f["crop"]][:4],
+        })
+    return sorted(groups, key=lambda g: (-len(g["clips"]), -len(g["face_ids"])))
+
+
+def known_people(conn) -> list[dict]:
+    """People with at least one recognised face: name, how many clips, one picture."""
+    return conn.execute(
+        """SELECT p.id, p.name, p.aliases, count(DISTINCT f.clip_id) AS clips,
+                  (array_agg(f.crop ORDER BY f.score DESC NULLS LAST) FILTER (WHERE f.crop IS NOT NULL))[1] AS crop,
+                  (array_agg(c.thumb ORDER BY f.score DESC NULLS LAST))[1] AS thumb
+             FROM people p JOIN clip_faces f ON f.person_id = p.id JOIN clips c ON c.id = f.clip_id
+            GROUP BY p.id ORDER BY clips DESC, p.name"""
+    ).fetchall()
+
+
+MAX_REFS_PER_NAMING = 5   # faces of a named group kept as references (spread across the group)
+
+
+def name_faces(conn, face_ids: list[int], name: str, aliases: list[str] | None = None) -> tuple[int, list[int]]:
+    """A person looked at these faces and said who it is. All of them become that
+    person (even the ones a model would not have matched: a person checked them),
+    a few become reference photos, and every other unknown face is checked again.
+    Naming a second group with the same name merges it into the same person.
+    Returns (person_id, ids of clips that changed)."""
+    name = name.strip()
+    if not name or not face_ids:
+        raise ValueError("a name and at least one face are needed")
+    person_id = upsert_person(conn, name)
+    if aliases:
+        add_aliases(conn, person_id, aliases)
+    rows = conn.execute("SELECT id, clip_id FROM clip_faces WHERE id = ANY(%s) ORDER BY id",
+                        (face_ids,)).fetchall()
+    if not rows:
+        raise ValueError("none of those faces exist")
+    conn.execute("UPDATE clip_faces SET person_id = %s, score = 1 WHERE id = ANY(%s)",
+                 (person_id, [r["id"] for r in rows]))
+    step = max(1, len(rows) // MAX_REFS_PER_NAMING)
+    for r in rows[::step][:MAX_REFS_PER_NAMING]:
+        promote(conn, r["id"], name)
+    named_clips = {r["clip_id"] for r in rows}
+    for clip_id in named_clips:
+        _add_person_to_clip(conn, clip_id, [name])
+    changed = named_clips | set(rematch_unknown(conn))
+    if aliases:                       # earlier clips of this person must learn the new names too
+        changed |= set(clips_of(conn, name))
+    return person_id, sorted(changed)
+
+
+def _add_person_to_clip(conn, clip_id: int, names: list[str]) -> None:
+    conn.execute(
+        """UPDATE clips
+              SET people = ARRAY(SELECT DISTINCT unnest(people || %s::text[])),
+                  review_reasons = array_remove(review_reasons, 'unknown_faces'),
+                  needs_review = cardinality(array_remove(review_reasons, 'unknown_faces')) > 0
+            WHERE id = %s""",
+        (sorted(names), clip_id),
+    )
 
 
 def promote(conn, clip_face_id: int, name: str) -> int:
