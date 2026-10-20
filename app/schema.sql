@@ -162,3 +162,15 @@ CREATE TABLE IF NOT EXISTS clip_descriptions (
 );
 ALTER TABLE clip_descriptions ADD COLUMN IF NOT EXISTS request JSONB;
 ALTER TABLE clip_descriptions ADD COLUMN IF NOT EXISTS reply JSONB;
+
+-- Situation lane (app/uses.py): one row per "send it when" line of a clip, with its own
+-- meaning vector. A search scores a clip by its best line, so one clip can serve many
+-- situations without any of them blurring the others.
+CREATE TABLE IF NOT EXISTS clip_uses (
+    id        BIGSERIAL PRIMARY KEY,
+    clip_id   BIGINT NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
+    line      TEXT NOT NULL,
+    source    TEXT NOT NULL,                 -- "send_when" | "poster_meant" (from clip_descriptions) | "edited"
+    embedding vector({EMBED_DIM}) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS clip_uses_clip ON clip_uses (clip_id);

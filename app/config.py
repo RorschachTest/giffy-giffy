@@ -141,6 +141,11 @@ MIN_SEMANTIC = float(os.getenv("MIN_SEMANTIC", "0.45"))   # only for libraries u
 # 3.9-4.7, "who are these people" 3.4-5.2.
 MIN_SEMANTIC_Z = float(os.getenv("MIN_SEMANTIC_Z", "2.9"))
 SEMANTIC_Z_MIN_CLIPS = int(os.getenv("SEMANTIC_Z_MIN_CLIPS", "200"))
+# Situation lane: a clip's best "send it when" line against the search (app/uses.py).
+# Like the meaning lane it must stand out from the library (z-score) to let a clip in.
+ENABLE_USES = _bool("ENABLE_USES", False)
+W_USE = float(os.getenv("W_USE", "0.35"))      # tuned on the test searches (2026-10-20)
+MIN_USE_Z = float(os.getenv("MIN_USE_Z", "3.5"))
 # Topic / mood match between the query (Laya) and the clip's topics + reactions.
 W_TOPIC = float(os.getenv("W_TOPIC", "0.25"))
 MIN_TOPIC = float(os.getenv("MIN_TOPIC", "0.5"))
