@@ -174,3 +174,39 @@ CREATE TABLE IF NOT EXISTS clip_uses (
     embedding vector({EMBED_DIM}) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS clip_uses_clip ON clip_uses (clip_id);
+
+-- An answer replaced by `describe --redo`: moved here first, so nothing paid for is lost.
+CREATE TABLE IF NOT EXISTS clip_descriptions_history (
+    clip_id        BIGINT NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
+    prompt_version TEXT NOT NULL,
+    model          TEXT NOT NULL,
+    happens        TEXT NOT NULL DEFAULT '',
+    poster_meant   TEXT NOT NULL DEFAULT '',
+    send_when      TEXT[] NOT NULL DEFAULT '{}',
+    confidence     TEXT,
+    answer         JSONB NOT NULL,
+    state          JSONB NOT NULL,
+    strip          TEXT,
+    usage          JSONB,
+    cost           REAL,
+    request        JSONB,
+    reply          JSONB,
+    at             TIMESTAMPTZ NOT NULL,          -- when the replaced answer was written
+    replaced_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS clip_descriptions_history_clip ON clip_descriptions_history (clip_id);
+
+-- A reply that came back (and was charged) but could not be read: empty, cut off, not JSON.
+CREATE TABLE IF NOT EXISTS clip_description_failures (
+    id             BIGSERIAL PRIMARY KEY,
+    clip_id        BIGINT NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
+    prompt_version TEXT NOT NULL,
+    model          TEXT NOT NULL,
+    error          TEXT NOT NULL,
+    request        JSONB,
+    reply          JSONB,
+    cost           REAL,
+    at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- best-line candidates come from this index instead of a scan of every line
+CREATE INDEX IF NOT EXISTS clip_uses_embedding_hnsw ON clip_uses USING hnsw (embedding vector_cosine_ops);

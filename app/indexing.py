@@ -93,3 +93,5 @@ def refresh(conn, clip_id: int, embed: bool = True) -> None:
     if embed:
         conn.execute("UPDATE clips SET embedding = %s::vector WHERE id = %s",
                      (vec(embed_one(embedding_text(clip))), clip_id))
+        from . import uses   # its situation lines use the same embedding model: keep them in step
+        uses.build(conn, [clip_id])

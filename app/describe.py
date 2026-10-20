@@ -4,17 +4,22 @@
     python -m app.describe --limit 20           the first 20 of those
     python -m app.describe --ids 11 102         just these clips (described again if --redo)
     python -m app.describe --show 11            print what is stored for a clip
+    python -m app.describe --backfill-requests  rebuild the request of rows saved without one
 
 The model sees the whole clip as 8 frames in time order (one image, a 4x2 strip:
 start top-left, end bottom-right) so it can follow setup -> punchline, plus every piece
 of text we have (clip_state.build: title, caption, on-screen text, speech, people). It
 returns what happens, what the poster meant, and 3-6 "send it when" situations written
 the way people search. People search for situations ("salary khatam before month end"),
-not labels, so these lines are what search will match.
+not labels, so these lines are what search will match (app/uses.py).
 
-Everything is kept in clip_descriptions, one row per clip and PROMPT_VERSION, with the
-full reply, the text it was given, the strip it saw and the cost: nothing is asked
-twice, and a new prompt version writes new rows beside the old ones to compare.
+Nothing paid for is thrown away:
+  clip_descriptions          the current answer per clip and PROMPT_VERSION, with the exact
+                             request (image -> its stored strip), the whole reply and the cost
+  clip_descriptions_history  an answer replaced by --redo, moved here first
+  clip_description_failures  a reply that could not be read (empty, cut off, not JSON)
+Strips are stored under a name made from their own bytes, so a later prompt or a redo
+never overwrites the image an older row points to.
 Measured on 10 clips (2026-10-20): Gemini 2.5 Flash with thinking off reads sarcasm
 and the poster's intent, ~$0.0008 a clip; Flash-Lite took clips literally and made
 situations up. The gateway's free credit is rate limited: 429s are waited out.
@@ -23,8 +28,10 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
+import io
 import json
-import subprocess
+import socket
 import sys
 import tempfile
 import time
@@ -32,7 +39,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from . import clip_state, config, db, storage
+from . import clip_state, config, db, media, storage
 
 PROMPT_VERSION = "v1"
 FRAMES, COLS, ROWS, FRAME_WIDTH = 8, 4, 2, 240
@@ -49,13 +56,29 @@ Return JSON:
 Do not invent facts that are not in the frames or text. Name a person only if the name is in the text we give you; otherwise describe them ("a man in a suit")."""
 
 
-def make_strip(video: Path, duration: float | None, out: Path) -> Path:
-    """8 frames spread over the whole clip, tiled 4x2 in time order, as one JPEG."""
-    fps = FRAMES / max(duration or FRAMES, 1.0)
-    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(video), "-vf",
-                    f"fps={fps:.4f},scale={FRAME_WIDTH}:-2,tile={COLS}x{ROWS}", "-frames:v", "1", str(out)],
-                   check=True)
-    return out
+class UnreadableReply(Exception):
+    """The gateway answered (and charged) but the content is not the JSON we asked for."""
+
+    def __init__(self, reply: dict, reason: str):
+        super().__init__(reason)
+        self.reply = reply
+
+
+def make_strip(video: Path, duration: float | None, tmp: Path) -> bytes:
+    """8 frames spread over the whole clip (media.extract_keyframes, the same sampling OCR
+    and faces use), each FRAME_WIDTH wide, tiled 4x2 in time order, as one JPEG."""
+    from PIL import Image
+
+    frames = media.extract_keyframes(video, tmp / "frames", duration or float(FRAMES), FRAMES)
+    images = [Image.open(f).convert("RGB") for f in frames]
+    w = FRAME_WIDTH
+    h = max(2, round(images[0].height * w / images[0].width))
+    sheet = Image.new("RGB", (w * COLS, h * ROWS))
+    for i, im in enumerate(images[:COLS * ROWS]):
+        sheet.paste(im.resize((w, h)), ((i % COLS) * w, (i // COLS) * h))
+    out = io.BytesIO()
+    sheet.save(out, "JPEG", quality=85)
+    return out.getvalue()
 
 
 def request_body(strip_jpeg: bytes, state: dict, model: str) -> dict:
@@ -72,7 +95,7 @@ def request_body(strip_jpeg: bytes, state: dict, model: str) -> dict:
 
 def as_stored(body: dict, strip_key: str) -> dict:
     """The request as kept in the table: identical, except the inline image (~60 KB of
-    base64) is replaced by the storage key of the same JPEG, saved next to the clip."""
+    base64) is replaced by the storage key of the same JPEG."""
     out = json.loads(json.dumps(body))
     for part in out["messages"][0]["content"]:
         if part.get("type") == "image_url":
@@ -80,26 +103,47 @@ def as_stored(body: dict, strip_key: str) -> dict:
     return out
 
 
+def _retryable(exc: Exception) -> bool:
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code == 429 or exc.code >= 500
+    return isinstance(exc, (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError))
+
+
 def ask(body: dict) -> dict:
-    """One gateway call; returns the gateway's whole reply. Waits out rate limits."""
+    """One gateway call; returns the gateway's whole reply. Waits out rate limits, server
+    errors and timeouts (RETRY_WAITS_S), then gives up."""
     req = urllib.request.Request(config.GATEWAY_CHAT_URL, data=json.dumps(body).encode(),
                                  headers={"Authorization": f"Bearer {config.GATEWAY_API_KEY}",
                                           "content-type": "application/json"})
     for wait in (*RETRY_WAITS_S, None):
         try:
             with urllib.request.urlopen(req, timeout=120) as resp:
-                reply = json.loads(resp.read())
-            break
-        except urllib.error.HTTPError as exc:
-            if exc.code != 429 or wait is None:
+                return json.loads(resp.read())
+        except Exception as exc:
+            if wait is None or not _retryable(exc):
                 raise
             time.sleep(wait)
-    return reply
+    raise AssertionError("unreachable")
+
+
+def read_answer(reply: dict) -> dict:
+    """The JSON object in the reply's message, or UnreadableReply (keeping the reply)."""
+    choice = (reply.get("choices") or [{}])[0]
+    content = (choice.get("message") or {}).get("content")
+    if not content or not str(content).strip():
+        raise UnreadableReply(reply, f"empty content (finish_reason={choice.get('finish_reason')})")
+    try:
+        answer = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise UnreadableReply(reply, f"not JSON ({exc}; finish_reason={choice.get('finish_reason')})") from None
+    if not isinstance(answer, dict):
+        raise UnreadableReply(reply, "JSON is not an object")
+    return answer
 
 
 def clean(answer: dict) -> dict:
     """The reply's fields, trimmed and typed; anything missing becomes empty."""
-    send = [str(s).strip() for s in answer.get("send_when") or [] if str(s).strip()][:8]
+    send = [str(s).strip() for s in answer.get("send_when") or [] if s is not None and str(s).strip()][:8]
     conf = str(answer.get("confidence") or "").strip().lower()
     return {"happens": str(answer.get("happens") or "").strip(),
             "poster_meant": str(answer.get("poster_meant") or "").strip(),
@@ -107,19 +151,45 @@ def clean(answer: dict) -> dict:
             "confidence": conf if conf in ("high", "medium", "low") else None}
 
 
-def describe(conn, clip: dict, model: str) -> dict:
+def store_strip(clip_id: int, data: bytes) -> str:
+    """Save the strip under a name from its own bytes: the same image is stored once, and a
+    different one (new prompt, redo) never replaces the file an older row points to."""
+    jpg = config.MEDIA_DIR / f"strip-{clip_id}-{hashlib.sha256(data).hexdigest()[:12]}.jpg"
+    jpg.write_bytes(data)
+    return storage.save(jpg)
+
+
+COLUMNS = ("clip_id, prompt_version, model, happens, poster_meant, send_when, confidence, answer, "
+           "state, strip, usage, cost, request, reply, at")
+
+
+def describe(conn, clip: dict, model: str) -> float:
+    """Ask, store, refresh the clip's situation lines. Returns what it cost (USD)."""
+    from . import uses
+
     state = clip_state.build(clip)
     with tempfile.TemporaryDirectory() as tmp:
-        jpg = config.MEDIA_DIR / f"strip-{clip['id']}.jpg"
         with storage.local_copy(clip["file"]) as video:
-            make_strip(video, clip.get("duration"), Path(tmp) / "strip.jpg")
-        data = (Path(tmp) / "strip.jpg").read_bytes()
-        jpg.write_bytes(data)
-        strip_key = storage.save(jpg)          # kept: a later model or the eval page can reuse it
+            data = make_strip(video, clip.get("duration"), Path(tmp))
+    strip_key = store_strip(clip["id"], data)
     body = request_body(data, state, model)
     reply = ask(body)
-    answer = json.loads(reply["choices"][0]["message"]["content"])
     usage = reply.get("usage") or {}
+    request = json.dumps(as_stored(body, strip_key), ensure_ascii=False)
+    try:
+        answer = read_answer(reply)
+    except UnreadableReply as exc:
+        conn.execute(
+            """INSERT INTO clip_description_failures (clip_id, prompt_version, model, error, request, reply, cost)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            (clip["id"], PROMPT_VERSION, model, str(exc), request, json.dumps(reply, ensure_ascii=False),
+             usage.get("cost")))
+        conn.commit()          # the failure is kept even though the caller counts this clip as failed
+        raise
+    # a redo keeps what it replaces
+    conn.execute(f"""INSERT INTO clip_descriptions_history ({COLUMNS})
+                     SELECT {COLUMNS} FROM clip_descriptions WHERE clip_id = %s AND prompt_version = %s""",
+                 (clip["id"], PROMPT_VERSION))
     row = clean(answer)
     conn.execute(
         """INSERT INTO clip_descriptions (clip_id, prompt_version, model, happens, poster_meant, send_when,
@@ -134,9 +204,9 @@ def describe(conn, clip: dict, model: str) -> dict:
         {**row, "id": clip["id"], "v": PROMPT_VERSION, "m": model, "answer": json.dumps(answer, ensure_ascii=False),
          "state": json.dumps(state, ensure_ascii=False), "strip": strip_key,
          "usage": json.dumps(usage), "cost": usage.get("cost"),
-         "request": json.dumps(as_stored(body, strip_key), ensure_ascii=False),
-         "reply": json.dumps(reply, ensure_ascii=False)})
-    return row
+         "request": request, "reply": json.dumps(reply, ensure_ascii=False)})
+    uses.build(conn, [clip["id"]])     # search sees the new lines at once
+    return float(usage.get("cost") or 0.0)
 
 
 def backfill_requests(conn) -> int:
@@ -193,10 +263,7 @@ def main(argv: list[str]) -> int:
     for clip in clips:
         try:
             with db.session() as conn:          # one commit per clip: a stop loses nothing
-                describe(conn, clip, args.model)
-                spent += float(conn.execute(
-                    "SELECT coalesce(cost, 0) AS c FROM clip_descriptions WHERE clip_id = %s AND prompt_version = %s",
-                    (clip["id"], PROMPT_VERSION)).fetchone()["c"])
+                spent += describe(conn, clip, args.model)
             done += 1
         except Exception as exc:                 # one bad clip must not stop the night's run
             failed += 1

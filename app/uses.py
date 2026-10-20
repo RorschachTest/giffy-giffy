@@ -2,6 +2,8 @@
 
     python -m app.uses            (re)build lines for every clip with a description
     python -m app.uses 11 228     just these clips
+describe.py and indexing.refresh rebuild a clip's lines themselves; this is for a bulk
+rebuild (after a new embedding model, or for clips described before that existed).
 
 Lines come from clip_descriptions (app/describe.py): every "send it when" situation plus
 what the poster meant. Each line gets its own meaning vector in clip_uses, and search
@@ -28,8 +30,9 @@ def lines_for(desc: dict) -> list[tuple[str, str]]:
     """(line, source) pairs for one description row, cleaned and without repeats."""
     out: list[tuple[str, str]] = []
     seen: set[str] = set()
-    for line, source in [*((s, "send_when") for s in desc.get("send_when") or []),
-                         (desc.get("poster_meant") or "", "poster_meant")]:
+    # what the poster meant first: it is the writer's intent, and must survive the cap
+    for line, source in [(desc.get("poster_meant") or "", "poster_meant"),
+                         *((s, "send_when") for s in desc.get("send_when") or [])]:
         line = " ".join(str(line).split()).strip(" .")
         key = line.lower()
         if len(line) >= 8 and key not in seen:
@@ -41,14 +44,18 @@ def lines_for(desc: dict) -> list[tuple[str, str]]:
 def build(conn, clip_ids: list[int] | None = None) -> int:
     """Replace the lines of these clips (all described clips when None) from their newest
     description. Returns how many lines were written."""
-    where = "WHERE d.clip_id = ANY(%(ids)s)" if clip_ids else ""
+    where = "AND d.clip_id = ANY(%(ids)s)" if clip_ids else ""
     descs = conn.execute(
         f"""SELECT DISTINCT ON (d.clip_id) d.clip_id, d.send_when, d.poster_meant
-              FROM clip_descriptions d {where}
+              FROM clip_descriptions d JOIN clips c ON c.id = d.clip_id
+             WHERE c.duplicate_of IS NULL {where}
              ORDER BY d.clip_id, d.at DESC""", {"ids": clip_ids or []}).fetchall()
     pairs = [(d["clip_id"], line, source) for d in descs for line, source in lines_for(d)]
     vectors = get_embedder().embed([hinglish.gloss(line) for _, line, _ in pairs]) if pairs else []
     ids = [d["clip_id"] for d in descs]
+    # lines of clips hidden as copies since they were built go too (duplicates never match)
+    conn.execute("""DELETE FROM clip_uses u USING clips c
+                     WHERE c.id = u.clip_id AND c.duplicate_of IS NOT NULL""")
     conn.execute("DELETE FROM clip_uses WHERE clip_id = ANY(%s) AND source <> 'edited'", (ids,))
     for (clip_id, line, source), v in zip(pairs, vectors):
         conn.execute("INSERT INTO clip_uses (clip_id, line, source, embedding) VALUES (%s, %s, %s, %s)",

@@ -45,11 +45,18 @@ lib AS (
 ),
 -- situation lane: each clip's best "send it when" line (clip_uses), and how the library
 -- scores, so a clip only counts when its best line stands out (as the meaning lane does)
-uses AS (
-    SELECT u.clip_id, max(1 - (u.embedding <=> q.qv)) AS us
-      FROM clip_uses u, q WHERE %(use_on)s GROUP BY u.clip_id
+-- The library's spread comes from a fixed quarter of the clips (clip_id %% 4 = 0): the same
+-- mean and spread within noise, a quarter of the work. Candidates come from the vector index.
+use_sample AS (
+    SELECT max(1 - (u.embedding <=> q.qv)) AS us
+      FROM clip_uses u, q WHERE %(use_on)s AND u.clip_id %% 4 = 0 GROUP BY u.clip_id
 ),
-ulib AS (SELECT count(*) AS n, avg(us) AS m, stddev_pop(us) AS sd FROM uses),
+ulib AS (SELECT count(*) * 4 AS n, avg(us) AS m, stddev_pop(us) AS sd FROM use_sample),
+use_top AS (
+    SELECT DISTINCT u.clip_id FROM (
+        SELECT u.clip_id FROM clip_uses u, q WHERE %(use_on)s
+         ORDER BY u.embedding <=> q.qv LIMIT 400) u
+),
 candidates AS (
     (SELECT c.id FROM clips c, q
       WHERE q.qn <%% c.s_names OR q.qn <%% c.s_said OR q.qn <%% c.s_people
@@ -67,7 +74,12 @@ candidates AS (
       WHERE cardinality(q.qt) > 0 AND (c.topics && q.qt OR c.reactions && q.qt)
       LIMIT 200)
     UNION
-    (SELECT clip_id FROM uses ORDER BY us DESC LIMIT 50)
+    (SELECT clip_id FROM use_top)
+),
+-- each candidate's best line (only candidates: not every clip in the library)
+uses AS (
+    SELECT u.clip_id, max(1 - (u.embedding <=> q.qv)) AS us
+      FROM clip_uses u JOIN candidates c ON c.id = u.clip_id, q WHERE %(use_on)s GROUP BY u.clip_id
 ),
 scored AS (
     SELECT c.*,
