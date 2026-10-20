@@ -85,6 +85,12 @@ LAYA_TOPIC_MIN = float(os.getenv("LAYA_TOPIC_MIN", "0.45"))  # probability to ke
 LAYA_MAX_TOPICS = int(os.getenv("LAYA_MAX_TOPICS", "5"))
 LAYA_QUERY_MIN = float(os.getenv("LAYA_QUERY_MIN", "0.3"))  # probability to treat a query as about X
 
+# Clip descriptions (app/describe.py): a vision model reads a strip of frames plus the clip's
+# text and writes what happens and when you would send it. Through Vercel's AI Gateway.
+GATEWAY_API_KEY = os.getenv("TYPESAFE_API_KEY", "")
+GATEWAY_CHAT_URL = os.getenv("GATEWAY_CHAT_URL", "https://ai-gateway.vercel.sh/v1/chat/completions")
+DESCRIBE_MODEL = os.getenv("DESCRIBE_MODEL", "google/gemini-2.5-flash")
+
 # Faces
 ENABLE_FACES = _bool("ENABLE_FACES", True)
 FACE_MODEL = os.getenv("FACE_MODEL", "buffalo_l")

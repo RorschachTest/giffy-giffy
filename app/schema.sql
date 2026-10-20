@@ -139,3 +139,22 @@ CREATE TABLE IF NOT EXISTS query_log (
     results     INT NOT NULL,
     top_score   REAL
 );
+
+-- What a vision model wrote about each clip (app/describe.py): kept so nothing is asked twice.
+-- One row per clip and prompt version; a new prompt writes new rows next to the old ones.
+CREATE TABLE IF NOT EXISTS clip_descriptions (
+    clip_id        BIGINT NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
+    prompt_version TEXT NOT NULL,
+    model          TEXT NOT NULL,
+    happens        TEXT NOT NULL DEFAULT '',      -- what happens, start to end
+    poster_meant   TEXT NOT NULL DEFAULT '',      -- what the poster uses it to say
+    send_when      TEXT[] NOT NULL DEFAULT '{}',  -- situations to send it in, as people search
+    confidence     TEXT,                          -- high / medium / low, the model's own
+    answer         JSONB NOT NULL,                -- the full reply, as returned
+    state          JSONB NOT NULL,                -- the text it was given (clip_state.build)
+    strip          TEXT,                          -- storage key of the frame strip it saw
+    usage          JSONB,
+    cost           REAL,                          -- USD, as the gateway reported it
+    at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (clip_id, prompt_version)
+);
