@@ -58,9 +58,9 @@ def make_strip(video: Path, duration: float | None, out: Path) -> Path:
     return out
 
 
-def ask(strip_jpeg: bytes, state: dict, model: str) -> tuple[dict, dict]:
-    """One gateway call. Returns (parsed answer, usage). Waits out rate limits."""
-    body = {
+def request_body(strip_jpeg: bytes, state: dict, model: str) -> dict:
+    """Exactly what is sent: the prompt, the clip's text and the strip as an inline image."""
+    return {
         "model": model, "response_format": {"type": "json_object"}, "max_tokens": 1500,
         "reasoning_effort": "none",   # Flash "thinks" by default: 3x the cost, no better here
         "messages": [{"role": "user", "content": [
@@ -68,6 +68,20 @@ def ask(strip_jpeg: bytes, state: dict, model: str) -> tuple[dict, dict]:
             {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(strip_jpeg).decode()}},
         ]}],
     }
+
+
+def as_stored(body: dict, strip_key: str) -> dict:
+    """The request as kept in the table: identical, except the inline image (~60 KB of
+    base64) is replaced by the storage key of the same JPEG, saved next to the clip."""
+    out = json.loads(json.dumps(body))
+    for part in out["messages"][0]["content"]:
+        if part.get("type") == "image_url":
+            part["image_url"] = {"stored_as": strip_key, "mime": "image/jpeg"}
+    return out
+
+
+def ask(body: dict) -> dict:
+    """One gateway call; returns the gateway's whole reply. Waits out rate limits."""
     req = urllib.request.Request(config.GATEWAY_CHAT_URL, data=json.dumps(body).encode(),
                                  headers={"Authorization": f"Bearer {config.GATEWAY_API_KEY}",
                                           "content-type": "application/json"})
@@ -80,7 +94,7 @@ def ask(strip_jpeg: bytes, state: dict, model: str) -> tuple[dict, dict]:
             if exc.code != 429 or wait is None:
                 raise
             time.sleep(wait)
-    return json.loads(reply["choices"][0]["message"]["content"]), reply.get("usage") or {}
+    return reply
 
 
 def clean(answer: dict) -> dict:
@@ -102,21 +116,44 @@ def describe(conn, clip: dict, model: str) -> dict:
         data = (Path(tmp) / "strip.jpg").read_bytes()
         jpg.write_bytes(data)
         strip_key = storage.save(jpg)          # kept: a later model or the eval page can reuse it
-    answer, usage = ask(data, state, model)
+    body = request_body(data, state, model)
+    reply = ask(body)
+    answer = json.loads(reply["choices"][0]["message"]["content"])
+    usage = reply.get("usage") or {}
     row = clean(answer)
     conn.execute(
         """INSERT INTO clip_descriptions (clip_id, prompt_version, model, happens, poster_meant, send_when,
-                                          confidence, answer, state, strip, usage, cost)
+                                          confidence, answer, state, strip, usage, cost, request, reply)
            VALUES (%(id)s, %(v)s, %(m)s, %(happens)s, %(poster_meant)s, %(send_when)s, %(confidence)s,
-                   %(answer)s, %(state)s, %(strip)s, %(usage)s, %(cost)s)
+                   %(answer)s, %(state)s, %(strip)s, %(usage)s, %(cost)s, %(request)s, %(reply)s)
            ON CONFLICT (clip_id, prompt_version) DO UPDATE SET
              model = EXCLUDED.model, happens = EXCLUDED.happens, poster_meant = EXCLUDED.poster_meant,
              send_when = EXCLUDED.send_when, confidence = EXCLUDED.confidence, answer = EXCLUDED.answer,
-             state = EXCLUDED.state, strip = EXCLUDED.strip, usage = EXCLUDED.usage, cost = EXCLUDED.cost, at = now()""",
+             state = EXCLUDED.state, strip = EXCLUDED.strip, usage = EXCLUDED.usage, cost = EXCLUDED.cost,
+             request = EXCLUDED.request, reply = EXCLUDED.reply, at = now()""",
         {**row, "id": clip["id"], "v": PROMPT_VERSION, "m": model, "answer": json.dumps(answer, ensure_ascii=False),
          "state": json.dumps(state, ensure_ascii=False), "strip": strip_key,
-         "usage": json.dumps(usage), "cost": usage.get("cost")})
+         "usage": json.dumps(usage), "cost": usage.get("cost"),
+         "request": json.dumps(as_stored(body, strip_key), ensure_ascii=False),
+         "reply": json.dumps(reply, ensure_ascii=False)})
     return row
+
+
+def backfill_requests(conn) -> int:
+    """Rows described before the request was kept: rebuild it from what was stored (the
+    prompt of their version, their state, their strip). No model call. Marked "rebuilt"
+    because Postgres stores JSON keys in its own order, so the clip text may be listed in
+    a different order than it was sent; the words are the same. Only for the current
+    PROMPT_VERSION: an older prompt's text is not in this file any more."""
+    rows = conn.execute(
+        "SELECT clip_id, model, state, strip FROM clip_descriptions WHERE request IS NULL AND prompt_version = %s",
+        (PROMPT_VERSION,)).fetchall()
+    for r in rows:
+        req = as_stored(request_body(b"", r["state"], r["model"]), r["strip"])
+        req["rebuilt"] = True
+        conn.execute("UPDATE clip_descriptions SET request = %s WHERE clip_id = %s AND prompt_version = %s",
+                     (json.dumps(req, ensure_ascii=False), r["clip_id"], PROMPT_VERSION))
+    return len(rows)
 
 
 def todo(conn, ids: list[int] | None, redo: bool, limit: int | None) -> list[dict]:
@@ -136,8 +173,12 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--redo", action="store_true")
     ap.add_argument("--model", default=config.DESCRIBE_MODEL)
     ap.add_argument("--show", type=int)
+    ap.add_argument("--backfill-requests", action="store_true", help="rebuild the request of rows saved without one")
     args = ap.parse_args(argv)
     with db.session() as conn:
+        if args.backfill_requests:
+            print(json.dumps({"requests_rebuilt": backfill_requests(conn)}))
+            return 0
         if args.show:
             for r in conn.execute("SELECT * FROM clip_descriptions WHERE clip_id = %s ORDER BY at", (args.show,)).fetchall():
                 print(json.dumps({k: r[k] for k in ("prompt_version", "model", "happens", "poster_meant",

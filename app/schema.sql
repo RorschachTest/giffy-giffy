@@ -155,6 +155,10 @@ CREATE TABLE IF NOT EXISTS clip_descriptions (
     strip          TEXT,                          -- storage key of the frame strip it saw
     usage          JSONB,
     cost           REAL,                          -- USD, as the gateway reported it
+    request        JSONB,                         -- the exact request sent (image -> its storage key)
+    reply          JSONB,                         -- the gateway's whole reply, as received
     at             TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (clip_id, prompt_version)
 );
+ALTER TABLE clip_descriptions ADD COLUMN IF NOT EXISTS request JSONB;
+ALTER TABLE clip_descriptions ADD COLUMN IF NOT EXISTS reply JSONB;
