@@ -18,3 +18,25 @@ def test_lines_are_cleaned_deduplicated_and_capped():
 def test_poster_meant_is_a_line_too():
     assert ("using it to mock fake gyaan", "poster_meant") in uses.lines_for(
         {"send_when": [], "poster_meant": "using it to mock fake gyaan"})
+
+
+def test_translated_versions_become_extra_rows(monkeypatch):
+    from app import translate
+
+    class Conn:
+        def __init__(self): self.rows = []
+        def execute(self, sql, params=None):
+            if "INSERT INTO clip_uses" in sql: self.rows.append(params)
+            class R:
+                def fetchall(_):
+                    if "FROM clip_descriptions" in sql:
+                        return [{"clip_id": 7, "send_when": ["main nahi aa sakta"], "poster_meant": ""}]
+                    return []
+            return R()
+    monkeypatch.setattr(translate, "line_versions",
+                        lambda conn, lines: {"main nahi aa sakta": [("I can't come", "en"), ("मैं नहीं आ सकता", "hi")]})
+    monkeypatch.setattr(uses, "get_embedder", lambda: type("E", (), {"embed": lambda self, t: [[0.0] * 3 for _ in t]})())
+    conn = Conn()
+    assert uses.build(conn, [7]) == 3
+    assert [(r[1], r[2]) for r in conn.rows] == [("main nahi aa sakta", "send_when"),
+                                                 ("I can't come", "send_when:en"), ("मैं नहीं आ सकता", "send_when:hi")]

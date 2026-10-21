@@ -205,7 +205,7 @@ def describe(conn, clip: dict, model: str) -> float:
          "state": json.dumps(state, ensure_ascii=False), "strip": strip_key,
          "usage": json.dumps(usage), "cost": usage.get("cost"),
          "request": request, "reply": json.dumps(reply, ensure_ascii=False)})
-    uses.build(conn, [clip["id"]])     # search sees the new lines at once
+    uses.build(conn, [clip["id"]], translate_new=True)     # search sees the new lines at once
     return float(usage.get("cost") or 0.0)
 
 
