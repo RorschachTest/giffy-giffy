@@ -39,7 +39,7 @@
   <section class="hero">
     <span class="eyebrow">Meme search · Hindi &amp; English</span>
     <h1>That's how we <mark>say</mark> it<span class="tag">let that sink in.</span></h1>
-    <p class="lede">Search a line you half remember, who's in it, or the mood. Copy the link and the group chat sees the clip.</p>
+    <p class="lede">Search a line you half remember, who's in it, or the situation you're in. Copy the link and the group chat sees the clip.</p>
     <div class="search">
       <div class="shell"><div class="core">
         <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -53,7 +53,6 @@
       <button class="tab" id="tab-failed" type="button" aria-pressed="false">Not found</button>
       <button class="tab" id="tab-faces" type="button" aria-pressed="false">Faces</button>
     </div>
-    <div class="quick" id="quick" aria-label="Quick searches"></div>
     <p id="status" role="status" aria-live="polite"></p>
   </section>
   <div id="grid" class="grid"></div>
@@ -145,15 +144,6 @@ function setLabel(b, text) {
 }
 
 const LISTS = ["folk_names", "people", "reactions", "use_when", "topics"];
-const QUICK = ["shocked", "late", "money", "confused", "angry", "happy", "speech"];
-// Every mood's colour comes from the theme: --mood-<name> and --mood-<name>-on
-// (text on it), with --mood-default / --mood-on-default for anything unlisted.
-const QUICK_MOOD = { late: "in a hurry", speech: "preachy" };   // quick word -> mood it stands for
-function paintMood(node, mood) {
-  const slug = mood.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  node.style.setProperty("--mood", `var(--mood-${slug}, var(--mood-default))`);
-  node.style.setProperty("--mood-on", `var(--mood-${slug}-on, var(--mood-on-default))`);
-}
 const themeVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
 let mode = "search", lastQuery = "", editing = null, timer = null;
@@ -282,11 +272,6 @@ function card(c, i) {
   const snd = el("div", "snd"); snd.append(icon("mute"));
   const time = el("div", "bar-time");
   frame.append(video, sub, snd, time);
-  const mood = (c.reactions || [])[0];
-  if (mood) {
-    paintMood(node, mood);
-    frame.append(el("div", "stick", mood));
-  }
   const topic = (c.topics || [])[0];
   if (topic) frame.append(el("div", "badge", "#" + topic));
   frame._video = video; frame._time = time;
@@ -497,7 +482,6 @@ function intentText(intent) {
 
 async function runSearch() {
   lastQuery = $("q").value.trim();
-  for (const b of $("quick").children) b.setAttribute("aria-pressed", String(b.textContent === lastQuery));
   try {
     const data = await api(lastQuery ? `/search?q=${encodeURIComponent(lastQuery)}` : `/search?q=&limit=${PAGE}`);
     const status = [];
@@ -510,7 +494,7 @@ async function runSearch() {
     }
     showCards(data.results, status,
       lastQuery ? `Nothing for “${lastQuery}” yet` : "No clips yet",
-      lastQuery ? "Try other words, a line from the clip, or a mood like shocked or late."
+      lastQuery ? "Try other words, a line from the clip, or the situation you are in."
                 : "Add a clip, or drop video files into data/inbox.");
     Object.assign(browse, { loaded: lastQuery ? 0 : data.count, total: lastQuery ? 0 : data.total || 0,
                             next: lastQuery ? null : data.next });
@@ -744,14 +728,6 @@ $("upload-form").onsubmit = async (e) => {
   } finally { submit.disabled = false; submit.textContent = "Upload"; }
 };
 
-for (const word of QUICK) {
-  const b = el("button", "pill", word);
-  paintMood(b, QUICK_MOOD[word] || word);
-  b.type = "button";
-  b.setAttribute("aria-pressed", "false");
-  b.onclick = () => { $("q").value = lastQuery === word ? "" : word; setMode("search"); };
-  $("quick").append(b);
-}
 
 $("open-upload").onclick = () => $("upload").showModal();
 $("curate").onclick = () => setCurate(!document.body.classList.contains("curate"));
@@ -790,7 +766,7 @@ const SUGGEST = (() => {                                  // search_suggestions,
 const SUGGEST_EVERY_MS = 10000;
 let suggestAt = Math.floor(Math.random() * SUGGEST.length);
 const hints = [];
-// code also fills or empties the box (mood buttons, home): setMode calls this
+// code also fills or empties the box (home, a cleared search): setMode calls this
 function syncHints() {                                    // the two boxes mirror each other
   const typed = !!$("q").value;
   for (const h of hints) { h.box.hidden = h.key.hidden = typed || !SUGGEST.length; h.clear.hidden = !typed; }
@@ -882,7 +858,7 @@ function showSuggestion(animate) {
 makeHint($("q"));
 makeHint($("q2"));
 if (SUGGEST.length) showSuggestion(false);
-else { $("q").placeholder = "Search a line, a person or a mood…"; $("q2").placeholder = "Search memes…"; }
+else { $("q").placeholder = "Search a line, a person or a situation…"; $("q2").placeholder = "Search memes…"; }
 syncHints();
 setInterval(() => {
   if (!SUGGEST.length) return;
