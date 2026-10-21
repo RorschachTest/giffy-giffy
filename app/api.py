@@ -92,6 +92,9 @@ def _themed_page(name: str, theme: str | None) -> HTMLResponse:
     version = str(int(max(f.stat().st_mtime for f in css)))   # new file -> new URL, no stale CSS
     page = (STATIC / name).read_text(encoding="utf-8")
     page = page.replace("__THEME__", chosen).replace("__VERSION__", version)
+    if "__SUGGESTIONS__" in page:
+        from . import suggestions
+        page = page.replace("__SUGGESTIONS__", suggestions.as_script_json(suggestions.current()))
     # no-cache: browsers re-check the page on every visit, so an update shows at once
     return HTMLResponse(page, headers={"Cache-Control": "no-cache"})
 

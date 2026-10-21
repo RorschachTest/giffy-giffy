@@ -156,6 +156,15 @@ input[type=text], textarea, input[type=file] { width: 100%; outline: none; }
 .face-msg { flex-basis: 100%; font-size: 13px; color: var(--text-2, inherit); min-height: 1.2em; }
 .face-check { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 8px 10px; }
 
-/* Rotating search suggestions (the placeholder): end long ones with "…", smaller on phones */
-#q, #q2 { text-overflow: ellipsis; }
-@media (max-width: 480px) { #q::placeholder, #q2::placeholder { font-size: .82em; } }
+/* Rotating search suggestion, drawn over the empty box: ⇥ key, then the words (end with "…") */
+.search .core { position: relative; }
+.suggest { position: absolute; display: flex; align-items: center; gap: .5em; pointer-events: none;
+           white-space: nowrap; overflow: hidden; color: inherit; }
+.suggest[hidden] { display: none; }
+.suggest-key { pointer-events: auto; flex: none; display: grid; place-items: center; min-width: 1.9em; height: 1.5em;
+               padding: 0 .35em; border-radius: 6px; border: 1px solid currentColor; background: none; color: inherit;
+               font: inherit; font-size: .78em; line-height: 1; opacity: .55; cursor: pointer; }
+.suggest-key:hover { opacity: .9; }
+.suggest-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; opacity: .55; }
+.suggest-words .w { display: inline-block; }
+@media (max-width: 480px) { .suggest { font-size: .82em !important; } }
