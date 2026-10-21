@@ -46,6 +46,7 @@
     <div class="tabs" role="group" aria-label="Library views">
       <button class="tab" id="tab-search" type="button" aria-pressed="true">Library</button>
       <button class="tab" id="tab-review" type="button" aria-pressed="false">Needs review</button>
+      <button class="tab" id="tab-searches" type="button" aria-pressed="false">Searches</button>
       <button class="tab" id="tab-failed" type="button" aria-pressed="false">Not found</button>
       <button class="tab" id="tab-faces" type="button" aria-pressed="false">Faces</button>
       <button class="tab" id="tab-users" type="button" aria-pressed="false">Users</button>
@@ -506,6 +507,44 @@ async function runReview() {
             "Nothing to review", "Every clip passed its checks.");
 }
 
+// ---- Curate > Searches: what people look for, in aggregate (no names, no accounts) ------
+const LANGUAGE = { hinglish: "Hinglish", english: "English", hindi: "Hindi script", unclear: "Too short to tell" };
+async function runSearches() {
+  $("grid").replaceChildren();
+  $("status").textContent = "Loading searches…";
+  let d;
+  try { d = await api("/queries/summary?days=30&limit=150"); }
+  catch (e) { $("status").textContent = `Could not load searches: ${e.message}`; return; }
+  $("status").textContent = `${d.searches} searches in the last ${d.days} days, ${d.distinct} different ones · ` +
+    `${Math.round(d.found_nothing_share * 100)}% found nothing. Stored without names or accounts.`;
+  const wrap = el("div", "searches");
+  const langs = el("div", "search-langs");
+  for (const [k, n] of Object.entries(d.by_language)) {
+    const pct = d.searches ? Math.round(n / d.searches * 100) : 0;
+    const row = el("div", "search-lang");
+    const bar = el("span", "search-lang-bar"); bar.style.setProperty("--w", `${pct}%`);
+    row.append(el("span", "search-lang-name", LANGUAGE[k] || k), bar, el("span", "search-lang-n", `${pct}%`));
+    langs.append(row);
+  }
+  const days = el("p", "search-days", d.per_day.map((x) => `${x.day.slice(5)}: ${x.searches}`).join("  ·  "));
+  const table = el("table", "search-top");
+  const head = el("tr");
+  for (const h of ["Search", "Times", "Language", "Found nothing"]) head.append(el("th", "", h));
+  table.append(head);
+  for (const q of d.top) {
+    const tr = el("tr");
+    const link = el("button", "linkish", q.query_norm); link.type = "button";
+    link.onclick = () => { $("q").value = q.query_norm; setCurate(false); };
+    const td = el("td"); td.append(link);
+    tr.append(td, el("td", "metric", String(q.times)), el("td", "", LANGUAGE[q.language] || q.language),
+              el("td", "metric", q.found_nothing ? `${q.found_nothing} of ${q.times}` : "—"));
+    table.append(tr);
+  }
+  wrap.append(el("h3", "faces-head", "Language"), langs, el("h3", "faces-head", "Per day"), days,
+              el("h3", "faces-head", "Most searched"), table);
+  $("table").replaceChildren(wrap);
+}
+
 async function runFailed() {
   const data = await api("/queries/failed");
   $("grid").replaceChildren();
@@ -672,8 +711,8 @@ function setMode(next) {
   syncHints();
   document.querySelector(".face-form")?.remove();   // the naming bar belongs to one opened group
   $("more").hidden = $("end").hidden = true;
-  for (const m of ["search", "review", "failed", "faces", "users"]) $("tab-" + m).setAttribute("aria-pressed", String(m === mode));
-  ({ search: runSearch, review: runReview, failed: runFailed, faces: runFaces, users: runUsers })[mode]();
+  for (const m of ["search", "review", "searches", "failed", "faces", "users"]) $("tab-" + m).setAttribute("aria-pressed", String(m === mode));
+  ({ search: runSearch, review: runReview, searches: runSearches, failed: runFailed, faces: runFaces, users: runUsers })[mode]();
 }
 
 function setCurate(on) {
@@ -730,7 +769,7 @@ $("upload-form").onsubmit = async (e) => {
 $("open-upload").onclick = () => $("upload").showModal();
 $("curate").onclick = () => setCurate(!document.body.classList.contains("curate"));
 for (const b of document.querySelectorAll("[data-close]")) b.onclick = () => b.closest("dialog").close();
-for (const m of ["search", "review", "failed", "faces", "users"]) $("tab-" + m).onclick = () => setMode(m);
+for (const m of ["search", "review", "searches", "failed", "faces", "users"]) $("tab-" + m).onclick = () => setMode(m);
 $("more").onclick = loadMore;
 $("q").oninput = () => { clearTimeout(timer); timer = setTimeout(() => setMode("search"), 350); };
 const smooth = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");

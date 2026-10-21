@@ -9,6 +9,7 @@
     GET   /clips/{id}           everything we know about one clip
     PATCH /clips/{id}           correct or add facts by hand
     GET   /review               clips the pipeline was unsure about
+    GET   /queries/summary      what people search for, in aggregate (never who)
     GET   /queries/failed       searches that found nothing
     POST  /upload               drop a clip into the inbox from the browser
     GET   /media/...            the clip files
@@ -21,6 +22,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import shutil
 import uuid
@@ -56,6 +58,17 @@ async def lifespan(app: FastAPI):
     get_embedder()  # load the model now, not on the first search
     yield
 
+
+class _NoQueryStrings(logging.Filter):
+    """Access log lines keep the path but drop '?q=...': searches are stored only in the
+    anonymous query_log, never next to a network address and a time to the second."""
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple) and len(record.args) >= 3 and isinstance(record.args[2], str):
+            record.args = (*record.args[:2], record.args[2].split("?", 1)[0], *record.args[3:])
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_NoQueryStrings())
 
 app = FastAPI(title="memeclip", lifespan=lifespan)
 config.ensure_dirs()
@@ -494,6 +507,15 @@ def review(request: Request, limit: int = 50) -> dict:
             (max(1, min(limit, 200)),),
         ).fetchall()
     return {"count": len(rows), "results": [_public(r, request) for r in rows]}
+
+
+@app.get("/queries/summary")
+def query_summary(days: int = 30, limit: int = 100) -> dict:
+    """What people search for, in aggregate: never who (query_stats.py)."""
+    from . import query_stats
+
+    with db.session() as conn:
+        return query_stats.summary(conn, days, limit)
 
 
 @app.get("/queries/failed")

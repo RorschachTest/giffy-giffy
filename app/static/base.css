@@ -192,3 +192,15 @@ table.users td, table.users th { padding: 10px 12px; vertical-align: middle; }
 .users-email { font-size: 13px; color: var(--text-3, inherit); }
 table.users select { min-height: 36px; padding: 0 8px; border-radius: 10px; color: inherit;
                      background: var(--core, transparent); border: 1px solid var(--hair, rgba(255,255,255,.16)); }
+
+/* Curate > Searches */
+.searches { display: grid; gap: 12px; }
+.search-langs { display: grid; gap: 8px; max-width: 520px; }
+.search-lang { display: grid; grid-template-columns: 140px 1fr 44px; align-items: center; gap: 10px; font-size: 14px; }
+.search-lang-bar { height: 8px; border-radius: 999px; background: var(--hair, rgba(255,255,255,.12)); position: relative; overflow: hidden; }
+.search-lang-bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--w); border-radius: inherit; background: var(--text-2, #ccc); }
+.search-lang-n { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-3, inherit); }
+.search-days { margin: 0; font-size: 13px; color: var(--text-3, inherit); font-variant-numeric: tabular-nums; }
+table.search-top td, table.search-top th { padding: 8px 12px; }
+.linkish { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
+           text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--hair-strong, currentColor); }
