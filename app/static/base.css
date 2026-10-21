@@ -156,15 +156,31 @@ input[type=text], textarea, input[type=file] { width: 100%; outline: none; }
 .face-msg { flex-basis: 100%; font-size: 13px; color: var(--text-2, inherit); min-height: 1.2em; }
 .face-check { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 8px 10px; }
 
-/* Rotating search suggestion, drawn over the empty box: ⇥ key, then the words (end with "…") */
+/* Search box extras. Left: the rotating suggestion, where placeholder text would be.
+   Right slot: a Tab key chip while the box is empty, a clear button once it has text. */
 .search .core { position: relative; }
-.suggest { position: absolute; display: flex; align-items: center; gap: .5em; pointer-events: none;
-           white-space: nowrap; overflow: hidden; color: inherit; }
-.suggest[hidden] { display: none; }
-.suggest-key { pointer-events: auto; flex: none; display: grid; place-items: center; min-width: 1.9em; height: 1.5em;
-               padding: 0 .35em; border-radius: 6px; border: 1px solid currentColor; background: none; color: inherit;
-               font: inherit; font-size: .78em; line-height: 1; opacity: .55; cursor: pointer; }
-.suggest-key:hover { opacity: .9; }
-.suggest-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; opacity: .55; }
+.search .core #q, .dock .core #q2 { padding-right: 64px; }
+#q::-webkit-search-cancel-button, #q2::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.suggest { position: absolute; display: flex; align-items: center; pointer-events: none; white-space: nowrap; overflow: hidden; }
+.suggest[hidden], .suggest-key[hidden], .search-clear[hidden] { display: none; }
+.suggest-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; opacity: .5; padding-left: 3px; }
 .suggest-words .w { display: inline-block; }
-@media (max-width: 480px) { .suggest { font-size: .82em !important; } }
+.suggest-key, .search-clear { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: inherit; }
+.suggest-key { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border-radius: 8px;
+               border: 1px solid currentColor; background: none; font: 600 12px/1 var(--font, system-ui);
+               letter-spacing: .02em; opacity: .45; cursor: pointer; transition: opacity .15s; }
+.suggest-key:hover { opacity: .8; }
+.suggest-key-glyph { font-size: 14px; }
+.search-clear { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 999px;
+                background: rgba(0, 0, 0, .07); cursor: pointer; transition: background .15s; }
+.search-clear::before { content: ""; position: absolute; inset: -4px; }   /* 44px target */
+.search-clear:hover { background: rgba(0, 0, 0, .13); }
+.search-clear:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.search .search-clear svg, .dock .search-clear svg { position: static; left: auto; width: 18px; height: 18px; }
+.dock .search-clear { width: 30px; height: 30px; right: 8px; }
+.dock .suggest-key { height: 24px; right: 8px; }
+@media (max-width: 480px) {
+  .suggest { font-size: .82em !important; }
+  .suggest-key-label { display: none; }                  /* phones: just the ⇥, tap to use */
+  .search .core #q { padding-right: 56px; }
+}
