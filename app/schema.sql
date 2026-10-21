@@ -210,3 +210,13 @@ CREATE TABLE IF NOT EXISTS clip_description_failures (
 );
 -- best-line candidates come from this index instead of a scan of every line
 CREATE INDEX IF NOT EXISTS clip_uses_embedding_hnsw ON clip_uses USING hnsw (embedding vector_cosine_ops);
+
+-- English and Hindi (Devanagari) versions of each situation line (app/translate.py): the
+-- meaning model cannot read romanised Hindi, so every line is also embedded in these.
+CREATE TABLE IF NOT EXISTS line_translations (
+    line  TEXT PRIMARY KEY,
+    en    TEXT NOT NULL DEFAULT '',
+    hi    TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL,
+    at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);

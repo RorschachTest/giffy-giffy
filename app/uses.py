@@ -12,8 +12,9 @@ more text into a clip's single vector blurred it ("who are these people" fell fr
 to 1,166). One clip fits many situations; a best-line match keeps each one sharp.
 
 Lines Gemini wrote in Hinglish ("jab dil garden garden ho jaaye") get the same English
-gloss as search queries before embedding (hinglish.gloss): the meaning model reads
-English and Devanagari, not romanised Hindi, so both sides are treated the same way.
+gloss as search queries before embedding (hinglish.gloss), and every line also gets its
+English and Hindi (Devanagari) versions as extra rows (app/translate.py): the meaning
+model reads English and Devanagari well and romanised Hindi hardly at all.
 """
 from __future__ import annotations
 
@@ -41,9 +42,11 @@ def lines_for(desc: dict) -> list[tuple[str, str]]:
     return out[:MAX_LINES]
 
 
-def build(conn, clip_ids: list[int] | None = None) -> int:
+def build(conn, clip_ids: list[int] | None = None, translate_new: bool = False) -> int:
     """Replace the lines of these clips (all described clips when None) from their newest
-    description. Returns how many lines were written."""
+    description, each with its English and Hindi versions (line_translations) as extra
+    rows. translate_new asks the gateway for lines not translated yet (describe.py does;
+    refresh does not, so ingest never waits on the network). Returns rows written."""
     where = "AND d.clip_id = ANY(%(ids)s)" if clip_ids else ""
     descs = conn.execute(
         f"""SELECT DISTINCT ON (d.clip_id) d.clip_id, d.send_when, d.poster_meant
@@ -51,6 +54,18 @@ def build(conn, clip_ids: list[int] | None = None) -> int:
              WHERE c.duplicate_of IS NULL {where}
              ORDER BY d.clip_id, d.at DESC""", {"ids": clip_ids or []}).fetchall()
     pairs = [(d["clip_id"], line, source) for d in descs for line, source in lines_for(d)]
+    if pairs:
+        from . import translate
+        lines = [line for _, line, _ in pairs]
+        if translate_new:
+            try:
+                translate.translate_lines(conn, lines)
+            except Exception as exc:   # untranslated lines still work in their own words
+                print(f"  could not translate lines: {exc}", file=sys.stderr)
+        versions = translate.line_versions(conn, lines)
+        # "send_when:en", "poster_meant:hi": same clip, same situation, readable to the model
+        pairs += [(clip_id, text, f"{source}:{lang}")
+                  for clip_id, line, source in list(pairs) for text, lang in versions.get(line, [])]
     vectors = get_embedder().embed([hinglish.gloss(line) for _, line, _ in pairs]) if pairs else []
     ids = [d["clip_id"] for d in descs]
     # lines of clips hidden as copies since they were built go too (duplicates never match)
