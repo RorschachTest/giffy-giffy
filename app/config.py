@@ -14,6 +14,15 @@ def _bool(name: str, default: bool) -> bool:
 # Empty = the address each request came in on (fine for local testing).
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
 
+# Sign in with Google (app/auth.py). Off until AUTH_ENABLED=1 and both Google keys are set:
+# then nobody signs in and everyone is treated as an admin, as before.
+AUTH_ENABLED = _bool("AUTH_ENABLED", False)
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+ADMIN_EMAILS = os.getenv("ADMIN_EMAILS", "")              # comma separated; these accounts are admins
+MAX_USERS = int(os.getenv("MAX_USERS", "500"))            # active non-admin accounts; later sign-ups wait
+SESSION_DAYS = int(os.getenv("SESSION_DAYS", "30"))
+
 # The page design: the name of a file in app/static/themes/ (picker, sticker, viza, ...).
 # Change it here, or set UI_THEME in .env. /?theme=<name> previews any theme.
 UI_THEME = os.getenv("UI_THEME") or "sticker"

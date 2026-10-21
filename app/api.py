@@ -28,11 +28,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from . import config, db, faces, indexing, intent, laya, search as search_mod, share as share_mod, storage, understand as und
+from . import auth, config, db, faces, indexing, intent, laya, search as search_mod, share as share_mod, storage, understand as und
 from .embed import get_embedder
 
 STATIC = Path(__file__).with_name("static")
@@ -58,6 +59,42 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="memeclip", lifespan=lifespan)
 config.ensure_dirs()
+
+
+@app.middleware("http")
+async def require_sign_in(request: Request, call_next):
+    """Every request passes here: public paths go through, the rest need a signed-in active
+    account, admin paths an admin (auth.access_for decides). Off when auth is not set up."""
+    request.state.user = None
+    if not auth.enabled():
+        return await call_next(request)
+    need = auth.access_for(request.method, request.url.path)
+    if need == auth.PUBLIC:                       # videos, shared links: no lookup at all
+        return await call_next(request)
+    token = request.cookies.get(auth.SESSION_COOKIE)
+
+    def lookup():
+        with db.session() as conn:
+            return auth.user_for(conn, token)
+    user = await run_in_threadpool(lookup) if token else None
+    request.state.user = user
+    if auth.allowed(user, need):
+        return await call_next(request)
+    if request.method == "GET" and request.url.path == "/":
+        state = "" if user is None else f"?state={user['status']}"
+        return RedirectResponse("/login" + state, status_code=303)
+    if user is None:
+        return JSONResponse({"detail": "sign in first"}, status_code=401)
+    return JSONResponse({"detail": "not allowed" if user["status"] == "active" else f"account {user['status']}"},
+                        status_code=403)
+
+
+def _me(request: Request) -> dict | None:
+    """The signed-in account for the page; with auth off, everyone is an admin (as before)."""
+    if not auth.enabled():
+        return {"role": "admin", "status": "active", "email": "", "name": "", "given_name": "", "picture": "",
+                "auth": False}
+    return {**(auth.public_view(getattr(request.state, "user", None)) or {}), "auth": True}
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon() -> RedirectResponse:   # browsers ask for this on pages that name no icon
     return RedirectResponse("/static/icon.svg", status_code=301)
@@ -85,7 +122,7 @@ def _public(row: dict, request: Request | None = None) -> dict:
     return out
 
 
-def _themed_page(name: str, theme: str | None) -> HTMLResponse:
+def _themed_page(name: str, theme: str | None, me: dict | None = None) -> HTMLResponse:
     names = theme_names()
     chosen = next((t for t in (theme, config.UI_THEME, "sticker") if t in names), names[0])
     css = [STATIC / "base.css", THEMES / f"{chosen}.css", STATIC / name]
@@ -95,19 +132,126 @@ def _themed_page(name: str, theme: str | None) -> HTMLResponse:
     if "__SUGGESTIONS__" in page:
         from . import suggestions
         page = page.replace("__SUGGESTIONS__", suggestions.as_script_json(suggestions.current()))
+    if "__ME__" in page:
+        from . import suggestions
+        page = page.replace("__ME__", suggestions.as_script_json(me or {}))
     # no-cache: browsers re-check the page on every visit, so an update shows at once
     return HTMLResponse(page, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/", response_class=HTMLResponse)
-def index(theme: str | None = None) -> HTMLResponse:
-    return _themed_page("index.html", theme)
+def index(request: Request, theme: str | None = None) -> HTMLResponse:
+    return _themed_page("index.html", theme, _me(request))
+
+
+# --------------------------------------------------------------------------- #
+# Sign in with Google (auth.py)
+# --------------------------------------------------------------------------- #
+
+def _base(request: Request) -> str:
+    return (config.PUBLIC_BASE_URL or str(request.base_url)).rstrip("/")
+
+
+def _secure(request: Request) -> bool:
+    return _base(request).startswith("https://")
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(theme: str | None = None) -> HTMLResponse:
+    return _themed_page("login.html", theme)
+
+
+@app.get("/auth/google", include_in_schema=False)
+def google_start(request: Request) -> RedirectResponse:
+    if not auth.enabled():
+        return RedirectResponse("/", status_code=303)
+    state = auth.secrets.token_urlsafe(24)
+    resp = RedirectResponse(auth.google_url(state, _base(request)), status_code=303)
+    resp.set_cookie(auth.STATE_COOKIE, state, max_age=600, httponly=True, samesite="lax", secure=_secure(request))
+    return resp
+
+
+@app.get("/auth/google/callback", include_in_schema=False)
+def google_callback(request: Request, code: str = "", state: str = "", error: str = "") -> RedirectResponse:
+    expected = request.cookies.get(auth.STATE_COOKIE)
+    if error or not code or not expected or not auth.secrets.compare_digest(state, expected):
+        return RedirectResponse("/login?state=error", status_code=303)   # cancelled, or not our request
+    try:
+        profile = auth.google_profile(code, _base(request))
+    except Exception:
+        return RedirectResponse("/login?state=error", status_code=303)
+    with db.session() as conn:
+        user = auth.sign_in(conn, profile)
+        token = auth.start_session(conn, user["id"])
+    dest = "/" if user["status"] == "active" else f"/login?state={user['status']}"
+    resp = RedirectResponse(dest, status_code=303)
+    resp.delete_cookie(auth.STATE_COOKIE)
+    resp.set_cookie(auth.SESSION_COOKIE, token, max_age=config.SESSION_DAYS * 86400, httponly=True,
+                    samesite="lax", secure=_secure(request))
+    return resp
+
+
+@app.post("/auth/logout", include_in_schema=False)
+def logout(request: Request) -> JSONResponse:
+    with db.session() as conn:
+        auth.end_session(conn, request.cookies.get(auth.SESSION_COOKIE))
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(auth.SESSION_COOKIE)
+    return resp
+
+
+@app.get("/me")
+def me(request: Request) -> dict:
+    return _me(request) or {}
+
+
+# --------------------------------------------------------------------------- #
+# Users (Curate > Users, admins only)
+# --------------------------------------------------------------------------- #
+
+@app.get("/admin/users")
+def list_users() -> dict:
+    with db.session() as conn:
+        rows = conn.execute(
+            """SELECT id, email, name, picture, role, status, created_at, last_seen FROM users
+                ORDER BY (status = 'waitlist') DESC, role, created_at""").fetchall()
+        active = sum(1 for r in rows if r["role"] == "user" and r["status"] == "active")
+    return {"users": rows, "active_users": active, "max_users": config.MAX_USERS}
+
+
+class UserChange(BaseModel):
+    role: str | None = None
+    status: str | None = None
+
+
+@app.post("/admin/users/{user_id}")
+def change_user(user_id: int, body: UserChange, request: Request) -> dict:
+    if body.role not in (None, "admin", "user") or body.status not in (None, "active", "waitlist", "blocked"):
+        raise HTTPException(400, "role is admin or user; status is active, waitlist or blocked")
+    me_ = getattr(request.state, "user", None)
+    if me_ and me_["id"] == user_id and (body.role == "user" or body.status in ("waitlist", "blocked")):
+        raise HTTPException(400, "you cannot demote or block yourself")
+    with db.session() as conn:
+        row = conn.execute(
+            """UPDATE users SET role = coalesce(%s, role), status = coalesce(%s, status) WHERE id = %s
+               RETURNING id, email, name, role, status""", (body.role, body.status, user_id)).fetchone()
+        if row is None:
+            raise HTTPException(404, "no such user")
+        if row["status"] == "blocked":
+            conn.execute("DELETE FROM sessions WHERE user_id = %s", (user_id,))   # signed out everywhere
+    return row
 
 
 @app.get("/legal", response_class=HTMLResponse)
 def legal(theme: str | None = None) -> HTMLResponse:
     """Where the clips and data come from, and how to ask for removal."""
     return _themed_page("legal.html", theme)
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy(theme: str | None = None) -> HTMLResponse:
+    """What is collected at sign-in and how to have it deleted (linked from Google's sign-in screen)."""
+    return _themed_page("privacy.html", theme)
 
 
 @app.get("/themes")

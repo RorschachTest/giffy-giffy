@@ -35,6 +35,7 @@
 <button id="to-top" class="to-top" type="button" aria-label="Back to top" tabindex="-1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></button>
 
 <script type="application/json" id="suggestions">__SUGGESTIONS__</script>
+<script type="application/json" id="me">__ME__</script>
 <main>
   <section class="hero">
     <span class="eyebrow">Meme search · Hindi &amp; English</span>
@@ -52,6 +53,7 @@
       <button class="tab" id="tab-review" type="button" aria-pressed="false">Needs review</button>
       <button class="tab" id="tab-failed" type="button" aria-pressed="false">Not found</button>
       <button class="tab" id="tab-faces" type="button" aria-pressed="false">Faces</button>
+      <button class="tab" id="tab-users" type="button" aria-pressed="false">Users</button>
     </div>
     <p id="status" role="status" aria-live="polite"></p>
   </section>
@@ -675,11 +677,12 @@ function setMode(next) {
   syncHints();
   document.querySelector(".face-form")?.remove();   // the naming bar belongs to one opened group
   $("more").hidden = $("end").hidden = true;
-  for (const m of ["search", "review", "failed", "faces"]) $("tab-" + m).setAttribute("aria-pressed", String(m === mode));
-  ({ search: runSearch, review: runReview, failed: runFailed, faces: runFaces })[mode]();
+  for (const m of ["search", "review", "failed", "faces", "users"]) $("tab-" + m).setAttribute("aria-pressed", String(m === mode));
+  ({ search: runSearch, review: runReview, failed: runFailed, faces: runFaces, users: runUsers })[mode]();
 }
 
 function setCurate(on) {
+  if (!IS_ADMIN) on = false;                               // Curate is for admins (the server checks too)
   document.body.classList.toggle("curate", on);
   $("curate").setAttribute("aria-pressed", String(on));
   if (!on && mode !== "search") mode = "search";
@@ -732,7 +735,7 @@ $("upload-form").onsubmit = async (e) => {
 $("open-upload").onclick = () => $("upload").showModal();
 $("curate").onclick = () => setCurate(!document.body.classList.contains("curate"));
 for (const b of document.querySelectorAll("[data-close]")) b.onclick = () => b.closest("dialog").close();
-for (const m of ["search", "review", "failed", "faces"]) $("tab-" + m).onclick = () => setMode(m);
+for (const m of ["search", "review", "failed", "faces", "users"]) $("tab-" + m).onclick = () => setMode(m);
 $("more").onclick = loadMore;
 $("q").oninput = () => { clearTimeout(timer); timer = setTimeout(() => setMode("search"), 350); };
 const smooth = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
@@ -759,6 +762,67 @@ $("q2").oninput = () => { $("q").value = $("q2").value; $("q").oninput(); };
 // 10 s; Tab (or tapping the ⇥ key) takes it, the same as typing it. The list lives in the
 // search_suggestions table (app/suggestions.py) and comes in with the page.
 // Drawn over the box rather than as a placeholder, so the words can drift off like smoke.
+// ---- Who is signed in (written in by the server; auth.py) -----------------------------
+// admin: everything; user: search and share. With sign-in off everyone is an admin.
+const ME = (() => { try { return JSON.parse($("me").textContent) || {}; } catch { return {}; } })();
+const IS_ADMIN = ME.role === "admin";
+if (!IS_ADMIN) for (const id of ["curate", "open-upload"]) $(id).style.display = "none";   // hidden, not removed: other code refers to them
+if (ME.auth && ME.email) {
+  const who = el("button", "cta ghost account");
+  who.type = "button";
+  who.title = `Signed in as ${ME.email}. Sign out`;
+  who.setAttribute("aria-label", `Sign out ${ME.email}`);
+  if (ME.picture) {
+    const img = el("img"); img.src = ME.picture; img.alt = ""; img.referrerPolicy = "no-referrer"; who.append(img);
+  } else who.append(el("span", "account-initial", (ME.given_name || ME.email)[0].toUpperCase()));
+  who.onclick = async () => {
+    who.disabled = true;
+    await fetch("/auth/logout", { method: "POST" }).catch(() => {});
+    location.href = "/login";
+  };
+  document.querySelector(".island").append(who);
+}
+
+// ---- Curate > Users: who can sign in, their role, the waitlist ------------------------
+async function runUsers() {
+  $("grid").replaceChildren();
+  $("status").textContent = "Loading users…";
+  let data;
+  try { data = await api("/admin/users"); }
+  catch (e) { $("status").textContent = `Could not load users: ${e.message}`; return; }
+  const waiting = data.users.filter((u) => u.status === "waitlist").length;
+  $("status").textContent = `${data.active_users} of ${data.max_users} user places taken` +
+                            (waiting ? ` · ${waiting} waiting` : "") + ". Admins don't count toward the limit.";
+  const table = el("table", "users");
+  const head = el("tr");
+  for (const h of ["Person", "Role", "Access", "Joined"]) head.append(el("th", "", h));
+  table.append(head);
+  for (const u of data.users) {
+    const tr = el("tr");
+    const who = el("td");
+    who.append(el("strong", "", u.name || u.email), el("div", "users-email", u.email));
+    const pick = (field, options) => {
+      const sel = el("select"); sel.setAttribute("aria-label", `${field} for ${u.email}`);
+      for (const [v, label] of options) sel.append(new Option(label, v, false, u[field] === v));
+      sel.onchange = async () => {
+        sel.disabled = true;
+        try { await api(`/admin/users/${u.id}`, { method: "POST", headers: { "Content-Type": "application/json" },
+                                                    body: JSON.stringify({ [field]: sel.value }) });
+              u[field] = sel.value; }
+        catch (err) { sel.value = u[field]; alert(`Could not change: ${err.message}`); }
+        finally { sel.disabled = false; }
+      };
+      const td = el("td"); td.append(sel); return td;
+    };
+    tr.append(who, pick("role", [["user", "User"], ["admin", "Admin"]]),
+              pick("status", [["active", "Active"], ["waitlist", "Waitlist"], ["blocked", "Blocked"]]),
+              el("td", "", new Date(u.created_at).toLocaleDateString()));
+    table.append(tr);
+  }
+  if (!data.users.length) $("status").textContent = "Nobody has signed in yet.";
+  $("table").replaceChildren(table);
+}
+
 const SUGGEST = (() => {                                  // search_suggestions, written in by the server
   try { return JSON.parse($("suggestions").textContent).filter((t) => typeof t === "string" && t.trim()); }
   catch { return []; }
@@ -895,7 +959,7 @@ const curateFromHash = () => {
   if (on !== document.body.classList.contains("curate")) setCurate(on);
 };
 addEventListener("hashchange", curateFromHash);
-if (location.hash === "#curate") { document.body.classList.add("curate"); $("curate").setAttribute("aria-pressed", "true"); }
+if (location.hash === "#curate" && IS_ADMIN) { document.body.classList.add("curate"); $("curate").setAttribute("aria-pressed", "true"); }
 if (matchMedia("(pointer: fine)").matches) $("q").focus();
 const themeColor = themeVar("--theme-color");
 if (themeColor) document.querySelector('meta[name="theme-color"]').setAttribute("content", themeColor);

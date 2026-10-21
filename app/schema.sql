@@ -244,3 +244,28 @@ SELECT v.text, v.position FROM (VALUES
     ('laptop battery died at the worst time', 19), ('is there any other way out', 20)
 ) AS v(text, position)
 WHERE NOT EXISTS (SELECT 1 FROM search_suggestions);
+
+-- Accounts (app/auth.py): Google sign-in only. role: admin | user; status: active | waitlist | blocked.
+-- Only what Google's basic "openid email profile" sign-in gives; nothing more is asked for.
+CREATE TABLE IF NOT EXISTS users (
+    id          BIGSERIAL PRIMARY KEY,
+    google_sub  TEXT UNIQUE,                          -- Google's stable account id (an email can change)
+    email       TEXT NOT NULL UNIQUE,
+    name        TEXT NOT NULL DEFAULT '',
+    given_name  TEXT NOT NULL DEFAULT '',
+    family_name TEXT NOT NULL DEFAULT '',
+    picture     TEXT NOT NULL DEFAULT '',             -- profile photo URL
+    locale      TEXT NOT NULL DEFAULT '',             -- language, when Google shares it
+    role       TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+    status     TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'waitlist', 'blocked')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- One row per signed-in browser; only a hash of the cookie's token is kept.
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sessions_user ON sessions (user_id);

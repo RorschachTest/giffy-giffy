@@ -198,3 +198,14 @@ input[type=text], textarea, input[type=file] { width: 100%; outline: none; }
   .suggest-fill { display: grid; }
   .suggest-key { padding: 0 4px; }
 }
+
+/* Signed-in account: the Google picture (or an initial) in the nav; sign out on click */
+.account { padding: 0; width: 44px; min-width: 44px; border-radius: 999px; overflow: hidden; display: grid; place-items: center; }
+.account img { width: 30px; height: 30px; border-radius: 999px; object-fit: cover; }
+.account-initial { width: 30px; height: 30px; border-radius: 999px; display: grid; place-items: center;
+                   background: var(--tray, rgba(255,255,255,.1)); font-weight: 700; font-size: 14px; }
+/* Curate > Users */
+table.users td, table.users th { padding: 10px 12px; vertical-align: middle; }
+.users-email { font-size: 13px; color: var(--text-3, inherit); }
+table.users select { min-height: 36px; padding: 0 8px; border-radius: 10px; color: inherit;
+                     background: var(--core, transparent); border: 1px solid var(--hair, rgba(255,255,255,.16)); }
