@@ -14,7 +14,7 @@ from app import auth, config
 
 @pytest.mark.parametrize("method,path,need", [
     ("GET", "/c/abc123", auth.PUBLIC), ("GET", "/media/clip.mp4", auth.PUBLIC), ("GET", "/login", auth.PUBLIC),
-    ("GET", "/auth/google/callback", auth.PUBLIC), ("GET", "/legal", auth.PUBLIC), ("GET", "/static/base.css", auth.PUBLIC),
+    ("GET", "/auth/google/callback", auth.PUBLIC), ("GET", "/legal", auth.PUBLIC), ("GET", "/privacy", auth.PUBLIC), ("GET", "/static/base.css", auth.PUBLIC),
     ("GET", "/", auth.USER), ("GET", "/search", auth.USER), ("POST", "/clips/5/share", auth.USER), ("GET", "/clips/5", auth.USER),
     ("POST", "/upload", auth.ADMIN), ("GET", "/review", auth.ADMIN), ("GET", "/faces", auth.ADMIN),
     ("POST", "/people/3/aliases", auth.ADMIN), ("PATCH", "/clips/5", auth.ADMIN), ("GET", "/clips/5/state", auth.ADMIN),

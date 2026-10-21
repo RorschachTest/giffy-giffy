@@ -248,6 +248,12 @@ def legal(theme: str | None = None) -> HTMLResponse:
     return _themed_page("legal.html", theme)
 
 
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy(theme: str | None = None) -> HTMLResponse:
+    """What is collected at sign-in and how to have it deleted (linked from Google's sign-in screen)."""
+    return _themed_page("privacy.html", theme)
+
+
 @app.get("/themes")
 def themes() -> dict:
     return {"active": config.UI_THEME, "themes": theme_names()}

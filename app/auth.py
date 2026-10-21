@@ -46,7 +46,7 @@ USER = "user"
 ADMIN = "admin"
 
 # paths anyone can open: sign-in itself, shared clip links (chat previews), the files they show
-_PUBLIC_PREFIXES = ("/login", "/auth/", "/c/", "/oembed", "/media/", "/static/", "/favicon.ico", "/legal")
+_PUBLIC_PREFIXES = ("/login", "/auth/", "/c/", "/oembed", "/media/", "/static/", "/favicon.ico", "/legal", "/privacy")
 # paths only admins can open: adding clips, Curate and everything it reads or changes
 _ADMIN_PREFIXES = ("/upload", "/review", "/queries/failed", "/faces", "/people/", "/admin/",
                    "/understand/feedback", "/understand/stats", "/pilot")
