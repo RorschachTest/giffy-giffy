@@ -157,7 +157,7 @@ input[type=text], textarea, input[type=file] { width: 100%; outline: none; }
 .face-check { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 8px 10px; }
 
 /* Search box extras. Left: the rotating suggestion, where placeholder text would be.
-   Right slot: a Tab key chip while the box is empty, a clear button once it has text. */
+   Right slot: a Tab keycap while the box is empty, a clear button once it has text. */
 .search .core { position: relative; }
 .search .core #q, .dock .core #q2 { padding-right: 64px; }
 #q::-webkit-search-cancel-button, #q2::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
@@ -166,11 +166,19 @@ input[type=text], textarea, input[type=file] { width: 100%; outline: none; }
 .suggest-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; opacity: .5; padding-left: 3px; }
 .suggest-words .w { display: inline-block; }
 .suggest-key, .search-clear { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: inherit; }
-.suggest-key { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border-radius: 8px;
-               border: 1px solid currentColor; background: none; font: 600 12px/1 var(--font, system-ui);
-               letter-spacing: .02em; opacity: .45; cursor: pointer; transition: opacity .15s; }
-.suggest-key:hover { opacity: .8; }
-.suggest-key-glyph { font-size: 14px; }
+/* the Tab hint: a pressable keycap (inset cream, firm bottom edge) + a quiet "to try" */
+.suggest-key { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 6px; border: 0;
+               background: none; cursor: pointer; font: inherit; }
+.suggest-kbd { display: inline-grid; place-items: center; min-width: 38px; height: 24px; padding: 0 8px 1px;
+               border-radius: 7px; background: rgba(18, 18, 18, .07); box-shadow: inset 0 -2px 0 rgba(18, 18, 18, .16);
+               font: 700 12px/1 var(--font, system-ui); letter-spacing: .03em; color: rgba(18, 18, 18, .62);
+               transition: transform .12s cubic-bezier(.23, 1, .32, 1), box-shadow .12s; }
+.suggest-key-text { font-size: 13px; font-weight: 500; color: rgba(18, 18, 18, .45); }
+.suggest-key:hover .suggest-kbd { color: rgba(18, 18, 18, .8); }
+.suggest-key:active .suggest-kbd { transform: translateY(1px); box-shadow: inset 0 -1px 0 rgba(18, 18, 18, .16); }
+.suggest-fill { display: none; place-items: center; width: 36px; height: 36px; border-radius: 999px;
+                background: rgba(18, 18, 18, .07); color: rgba(18, 18, 18, .6); }
+.suggest-fill svg { width: 18px; height: 18px; }
 .search-clear { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 999px;
                 background: rgba(0, 0, 0, .07); cursor: pointer; transition: background .15s; }
 .search-clear::before { content: ""; position: absolute; inset: -4px; }   /* 44px target */
@@ -178,9 +186,15 @@ input[type=text], textarea, input[type=file] { width: 100%; outline: none; }
 .search-clear:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .search .search-clear svg, .dock .search-clear svg { position: static; left: auto; width: 18px; height: 18px; }
 .dock .search-clear { width: 30px; height: 30px; right: 8px; }
-.dock .suggest-key { height: 24px; right: 8px; }
+.dock .suggest-key { right: 6px; }
+.dock .suggest-key-text { display: none; }
 @media (max-width: 480px) {
   .suggest { font-size: .82em !important; }
-  .suggest-key-label { display: none; }                  /* phones: just the ⇥, tap to use */
   .search .core #q { padding-right: 56px; }
+}
+/* no Tab key on touch screens: the keycap becomes a tap-to-fill arrow */
+@media (pointer: coarse) {
+  .suggest-kbd, .suggest-key-text { display: none; }
+  .suggest-fill { display: grid; }
+  .suggest-key { padding: 0 4px; }
 }
