@@ -25,8 +25,6 @@ body { font-size: 15px; line-height: 1.5; }
                padding-top: max(12px, env(safe-area-inset-top)); }
 .island { max-width: 1160px; margin: 0 auto; }
 .wordmark { font-weight: 700; font-size: 19px; letter-spacing: -.03em; margin-right: auto; }
-.dock .core { background: var(--raised); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, .5); }
-.dock svg { color: var(--text-3); }
 .to-top { border-radius: 12px; background: var(--raised); color: var(--text); border: 1px solid var(--line-strong); }
 .to-top:hover { background: var(--lifted); }
 .cta { min-height: 40px; padding: 0 14px; gap: 8px; border-radius: 8px; border: 1px solid var(--line-strong); background: transparent;
@@ -43,7 +41,9 @@ body { font-size: 15px; line-height: 1.5; }
 
 /* no headline: search first */
 main { max-width: 1160px; margin: 0 auto; padding: 16px 16px 48px; }
-.hero { gap: 12px; padding-bottom: 16px; }
+.hero { gap: 12px; padding-bottom: 12px; }
+.hero-tail { gap: 12px; padding: 12px 0 16px; }
+.search { background: var(--bg, #000); }
 .eyebrow, .hero h1, .hero p.lede { display: none; }
 .search svg { left: 14px; color: var(--text-3); }
 #q { height: 48px; background: var(--inset); border: 1px solid var(--line); border-radius: 12px; padding: 0 16px 0 44px; font-size: 17px; }

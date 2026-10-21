@@ -87,6 +87,8 @@ main { max-width: 1296px; margin: 0 auto; padding: 0 var(--gutter) 64px; }
 #q { height: 64px; padding: 0 20px 0 56px; color: var(--ink); font-size: 19px; font-weight: 600; }
 #q::placeholder { color: #5d5850; }
 .search :focus-visible { box-shadow: none; outline: 0; }
+.search { margin-top: 18px; }
+.hero-tail { gap: 18px; padding: 18px 0 8px; }
 .tabs { gap: 0; justify-self: start; border: 3px solid var(--ink); }
 .tab { padding: 0 16px; font-weight: 800; font-size: 13px; color: var(--ink); background: var(--white); }
 .tab[aria-pressed="true"] { background: var(--ink); color: var(--yellow); }
@@ -167,8 +169,5 @@ dialog .cta.ghost { color: var(--ink); }
 dialog .cta.light { background: var(--cobalt); color: var(--white); }
 .hint { font-size: 13px; color: #4d483f; }
 
-/* docked search + back to top */
-.dock .core { background: var(--white); color: var(--ink); border: 3px solid var(--ink); box-shadow: 6px 6px 0 var(--ink); }
-.dock svg { color: var(--ink); }
 #q2 { color: var(--ink); font-weight: 700; }
 .to-top { background: var(--yellow); color: var(--ink); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); }
