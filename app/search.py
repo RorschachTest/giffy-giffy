@@ -189,7 +189,10 @@ def search(conn, query: str, limit: int = 24, log_query: bool = True, intent: di
     }).fetchall()
     if log_query:
         conn.execute(
-            "INSERT INTO query_log (query, query_norm, results, top_score) VALUES (%s, %s, %s, %s)",
+            # anonymous on purpose: no account, session or IP, and only the hour, so a search
+            # cannot be matched to who was signed in at that minute
+            "INSERT INTO query_log (at, query, query_norm, results, top_score) "
+            "VALUES (date_trunc('hour', now()), %s, %s, %s, %s)",
             (query, qn, len(rows), rows[0]["score"] if rows else None),
         )
     return rows
