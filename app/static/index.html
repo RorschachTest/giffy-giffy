@@ -788,7 +788,11 @@ function makeHint(input) {
   const key = el("button", "suggest-key");
   key.type = "button"; key.tabIndex = -1; key.title = "Use this search (Tab)";
   key.setAttribute("aria-hidden", "true");
-  key.append(el("span", "suggest-key-label", "Tab"), el("span", "suggest-key-glyph", "⇥"));
+  // desktop: a keycap + "to try"; phones (no Tab key): a fill-in arrow to tap
+  const cap = el("kbd", "suggest-kbd", "tab");
+  const fillIcon = el("span", "suggest-fill");
+  fillIcon.innerHTML = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 17 7 7"/><path d="M7 15V7h8"/></svg>';
+  key.append(cap, el("span", "suggest-key-text", "to try"), fillIcon);
   key.onmousedown = (e) => e.preventDefault();             // keep focus in the box
   key.onclick = useSuggestion;
   const clear = el("button", "search-clear");
@@ -805,13 +809,15 @@ function makeHint(input) {
   const fit = () => {
     const cs = getComputedStyle(input);
     box.style.left = input.offsetLeft + parseFloat(cs.paddingLeft) + "px";
-    box.style.width = input.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + "px";
+    // up to the keycap (it is wider than the box's own right padding), else to the padding
+    const end = key.offsetWidth ? key.offsetLeft - 12 : input.offsetLeft + input.clientWidth - parseFloat(cs.paddingRight);
+    box.style.width = Math.max(0, end - (input.offsetLeft + parseFloat(cs.paddingLeft))) + "px";
     box.style.top = input.offsetTop + "px";
     box.style.height = input.offsetHeight + "px";
     box.style.font = cs.font;
     box.style.letterSpacing = cs.letterSpacing;
   };
-  new ResizeObserver(fit).observe(input);
+  const ro = new ResizeObserver(fit); ro.observe(input); ro.observe(key);
   input.addEventListener("input", () => syncHints());
   input.addEventListener("keydown", (e) => {               // Esc empties the box, like the × button
     if (e.key === "Escape" && input.value) { e.preventDefault(); clearSearch(input); }
