@@ -34,6 +34,7 @@
 </div>
 <button id="to-top" class="to-top" type="button" aria-label="Back to top" tabindex="-1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></button>
 
+<script type="application/json" id="suggestions">__SUGGESTIONS__</script>
 <main>
   <section class="hero">
     <span class="eyebrow">Meme search · Hindi &amp; English</span>
@@ -687,6 +688,7 @@ async function openFaces({ person, group }) {
 
 function setMode(next) {
   mode = next;
+  syncHints();
   document.querySelector(".face-form")?.remove();   // the naming bar belongs to one opened group
   $("more").hidden = $("end").hidden = true;
   for (const m of ["search", "review", "failed", "faces"]) $("tab-" + m).setAttribute("aria-pressed", String(m === mode));
@@ -777,6 +779,124 @@ new IntersectionObserver(([e]) => {
   else if (document.activeElement === $("q2")) $("q").focus({ preventScroll: true });
 }).observe(document.querySelector(".hero .search"));
 $("q2").oninput = () => { $("q").value = $("q2").value; $("q").oninput(); };
+// Search suggestions: an empty search box shows a search people can try, a new one every
+// 10 s; Tab (or tapping the ⇥ key) takes it, the same as typing it. The list lives in the
+// search_suggestions table (app/suggestions.py) and comes in with the page.
+// Drawn over the box rather than as a placeholder, so the words can drift off like smoke.
+const SUGGEST = (() => {                                  // search_suggestions, written in by the server
+  try { return JSON.parse($("suggestions").textContent).filter((t) => typeof t === "string" && t.trim()); }
+  catch { return []; }
+})();
+const SUGGEST_EVERY_MS = 10000;
+let suggestAt = Math.floor(Math.random() * SUGGEST.length);
+const hints = [];
+// code also fills or empties the box (mood buttons, home): setMode calls this
+function syncHints() {                                    // the two boxes mirror each other
+  const typed = !!$("q").value;
+  for (const h of hints) { h.box.hidden = h.key.hidden = typed || !SUGGEST.length; h.clear.hidden = !typed; }
+}
+
+function useSuggestion() {
+  $("q").value = $("q2").value = SUGGEST[suggestAt];
+  clearTimeout(timer);
+  setMode("search");
+}
+
+function makeHint(input) {
+  // left: the suggestion, where placeholder text would be (the caret sits just before it)
+  const box = el("span", "suggest");
+  box.setAttribute("aria-hidden", "true");
+  const words = el("span", "suggest-words");
+  box.append(words);
+  // right slot: the Tab key while the box is empty, a clear button once it has text
+  const key = el("button", "suggest-key");
+  key.type = "button"; key.tabIndex = -1; key.title = "Use this search (Tab)";
+  key.setAttribute("aria-hidden", "true");
+  key.append(el("span", "suggest-key-label", "Tab"), el("span", "suggest-key-glyph", "⇥"));
+  key.onmousedown = (e) => e.preventDefault();             // keep focus in the box
+  key.onclick = useSuggestion;
+  const clear = el("button", "search-clear");
+  clear.type = "button"; clear.hidden = true;
+  clear.setAttribute("aria-label", "Clear search");
+  clear.innerHTML = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+  clear.onmousedown = (e) => e.preventDefault();
+  clear.onclick = () => clearSearch(input);
+  input.placeholder = "";
+  input.after(box, key, clear);
+  const hint = { input, box, words, key, clear };
+  hints.push(hint);
+  // the suggestion sits exactly where typed text would, in the box's own font
+  const fit = () => {
+    const cs = getComputedStyle(input);
+    box.style.left = input.offsetLeft + parseFloat(cs.paddingLeft) + "px";
+    box.style.width = input.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + "px";
+    box.style.top = input.offsetTop + "px";
+    box.style.height = input.offsetHeight + "px";
+    box.style.font = cs.font;
+    box.style.letterSpacing = cs.letterSpacing;
+  };
+  new ResizeObserver(fit).observe(input);
+  input.addEventListener("input", () => syncHints());
+  input.addEventListener("keydown", (e) => {               // Esc empties the box, like the × button
+    if (e.key === "Escape" && input.value) { e.preventDefault(); clearSearch(input); }
+  });
+  return hint;
+}
+
+function clearSearch(input) {
+  $("q").value = $("q2").value = "";
+  clearTimeout(timer);
+  setMode("search");                                       // back to the whole library
+  input.focus({ preventScroll: true });
+}
+
+function fillWords(hint, text) {
+  const spans = [];
+  hint.words.replaceChildren(...text.split(" ").map((w) => {
+    const s = el("span", "w", w); spans.push(s); return s;
+  }).flatMap((s, i) => (i ? [document.createTextNode(" "), s] : [s])));
+  return spans;
+}
+
+function showSuggestion(animate) {
+  const text = SUGGEST[suggestAt];
+  for (const id of ["q", "q2"]) $(id).setAttribute("aria-description", `Suggestion: ${text}. Press Tab to use it.`);
+  for (const hint of hints) {
+    const old = [...hint.words.querySelectorAll(".w")];
+    if (!animate || reduceMotion.matches || !old.length || hint.box.hidden) { fillWords(hint, text); continue; }
+    // out: each word lifts, blurs and fades, a little after the one before it
+    const outs = old.map((w, i) => w.animate(
+      [{ opacity: 1, transform: "none", filter: "blur(0)" },
+       { opacity: 0, transform: "translateY(-14px) scale(1.04)", filter: "blur(6px)" }],
+      { duration: 520, delay: i * 45, easing: "cubic-bezier(.4,0,.7,.2)", fill: "forwards" }));
+    Promise.all(outs.map((a) => a.finished)).then(() => {
+      // in: the new words condense out of the same air
+      fillWords(hint, text).forEach((w, i) => w.animate(
+        [{ opacity: 0, transform: "translateY(8px)", filter: "blur(6px)" },
+         { opacity: 1, transform: "none", filter: "blur(0)" }],
+        { duration: 480, delay: i * 45, easing: "cubic-bezier(.2,.7,.3,1)", fill: "backwards" }));
+    });
+  }
+}
+
+makeHint($("q"));
+makeHint($("q2"));
+if (SUGGEST.length) showSuggestion(false);
+else { $("q").placeholder = "Search a line, a person or a mood…"; $("q2").placeholder = "Search memes…"; }
+syncHints();
+setInterval(() => {
+  if (!SUGGEST.length) return;
+  if (document.hidden || $("q").value) return;            // only while the box is empty and on screen
+  suggestAt = (suggestAt + 1) % SUGGEST.length;
+  showSuggestion(true);
+}, SUGGEST_EVERY_MS);
+for (const id of ["q", "q2"]) {
+  $(id).addEventListener("keydown", (e) => {
+    if (e.key !== "Tab" || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey || $(id).value || !SUGGEST.length) return;
+    e.preventDefault();                                    // empty box + Tab: take the suggestion
+    useSuggestion();
+  });
+}
 // Back to top, after about a screen and a half
 addEventListener("scroll", () => {
   const on = scrollY > innerHeight * 1.5;

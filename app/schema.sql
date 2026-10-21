@@ -220,3 +220,27 @@ CREATE TABLE IF NOT EXISTS line_translations (
     model TEXT NOT NULL,
     at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Suggestions shown in the empty search box, one at a time (app/suggestions.py). Edit here
+-- (active, position) and the site picks the change up within SUGGESTIONS_TTL_S.
+CREATE TABLE IF NOT EXISTS search_suggestions (
+    id         BIGSERIAL PRIMARY KEY,
+    text       TEXT NOT NULL UNIQUE,
+    position   INT NOT NULL DEFAULT 0,
+    active     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- first set, only into an empty table (a deleted suggestion must not come back on restart):
+-- situations the clips' "send it when" lines answer (checked on the live library, 2026-10-21)
+INSERT INTO search_suggestions (text, position)
+SELECT v.text, v.position FROM (VALUES
+    ('nobody takes me seriously', 1), ('nothing makes any sense', 2), ('sorry I messed up', 3),
+    ('friend ignores the video I sent', 4), ('people talking nonsense', 5), ('the public will never forgive you', 6),
+    ('brother always on his phone', 7), ('mom calls while I''m busy working', 8), ('last minute energy before exams', 9),
+    ('exams are here and I haven''t studied', 10), ('everyone got in trouble except me', 11),
+    ('giving advice but doing nothing himself', 12), ('friend won''t return the money he owes', 13),
+    ('you ruined my mood', 14), ('my life is full of sadness', 15), ('friend invites you and makes you pay the bill', 16),
+    ('his old prediction came true', 17), ('marriage proposal talks started at home', 18),
+    ('laptop battery died at the worst time', 19), ('is there any other way out', 20)
+) AS v(text, position)
+WHERE NOT EXISTS (SELECT 1 FROM search_suggestions);
