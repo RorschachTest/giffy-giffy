@@ -85,6 +85,12 @@ LAYA_TOPIC_MIN = float(os.getenv("LAYA_TOPIC_MIN", "0.45"))  # probability to ke
 LAYA_MAX_TOPICS = int(os.getenv("LAYA_MAX_TOPICS", "5"))
 LAYA_QUERY_MIN = float(os.getenv("LAYA_QUERY_MIN", "0.3"))  # probability to treat a query as about X
 
+# Clip descriptions (app/describe.py): a vision model reads a strip of frames plus the clip's
+# text and writes what happens and when you would send it. Through Vercel's AI Gateway.
+GATEWAY_API_KEY = os.getenv("TYPESAFE_API_KEY", "")
+GATEWAY_CHAT_URL = os.getenv("GATEWAY_CHAT_URL", "https://ai-gateway.vercel.sh/v1/chat/completions")
+DESCRIBE_MODEL = os.getenv("DESCRIBE_MODEL", "google/gemini-2.5-flash")
+
 # Faces
 ENABLE_FACES = _bool("ENABLE_FACES", True)
 FACE_MODEL = os.getenv("FACE_MODEL", "buffalo_l")
@@ -135,6 +141,11 @@ MIN_SEMANTIC = float(os.getenv("MIN_SEMANTIC", "0.45"))   # only for libraries u
 # 3.9-4.7, "who are these people" 3.4-5.2.
 MIN_SEMANTIC_Z = float(os.getenv("MIN_SEMANTIC_Z", "2.9"))
 SEMANTIC_Z_MIN_CLIPS = int(os.getenv("SEMANTIC_Z_MIN_CLIPS", "200"))
+# Situation lane: a clip's best "send it when" line against the search (app/uses.py).
+# Like the meaning lane it must stand out from the library (z-score) to let a clip in.
+ENABLE_USES = _bool("ENABLE_USES", False)
+W_USE = float(os.getenv("W_USE", "0.35"))      # tuned on the test searches (2026-10-20)
+MIN_USE_Z = float(os.getenv("MIN_USE_Z", "3.5"))
 # Topic / mood match between the query (Laya) and the clip's topics + reactions.
 W_TOPIC = float(os.getenv("W_TOPIC", "0.25"))
 MIN_TOPIC = float(os.getenv("MIN_TOPIC", "0.5"))

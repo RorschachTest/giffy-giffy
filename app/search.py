@@ -43,6 +43,20 @@ lib AS (
     SELECT count(*) AS n, avg(1 - (c.embedding <=> q.qv)) AS m, stddev_pop(1 - (c.embedding <=> q.qv)) AS sd
       FROM clips c, q WHERE c.embedding IS NOT NULL AND c.duplicate_of IS NULL
 ),
+-- situation lane: each clip's best "send it when" line (clip_uses), and how the library
+-- scores, so a clip only counts when its best line stands out (as the meaning lane does)
+-- The library's spread comes from a fixed quarter of the clips (clip_id %% 4 = 0): the same
+-- mean and spread within noise, a quarter of the work. Candidates come from the vector index.
+use_sample AS (
+    SELECT max(1 - (u.embedding <=> q.qv)) AS us
+      FROM clip_uses u, q WHERE %(use_on)s AND u.clip_id %% 4 = 0 GROUP BY u.clip_id
+),
+ulib AS (SELECT count(*) * 4 AS n, avg(us) AS m, stddev_pop(us) AS sd FROM use_sample),
+use_top AS (
+    SELECT DISTINCT u.clip_id FROM (
+        SELECT u.clip_id FROM clip_uses u, q WHERE %(use_on)s
+         ORDER BY u.embedding <=> q.qv LIMIT 400) u
+),
 candidates AS (
     (SELECT c.id FROM clips c, q
       WHERE q.qn <%% c.s_names OR q.qn <%% c.s_said OR q.qn <%% c.s_people
@@ -59,6 +73,13 @@ candidates AS (
     (SELECT c.id FROM clips c, q
       WHERE cardinality(q.qt) > 0 AND (c.topics && q.qt OR c.reactions && q.qt)
       LIMIT 200)
+    UNION
+    (SELECT clip_id FROM use_top)
+),
+-- each candidate's best line (only candidates: not every clip in the library)
+uses AS (
+    SELECT u.clip_id, max(1 - (u.embedding <=> q.qv)) AS us
+      FROM clip_uses u JOIN candidates c ON c.id = u.clip_id, q WHERE %(use_on)s GROUP BY u.clip_id
 ),
 scored AS (
     SELECT c.*,
@@ -78,12 +99,19 @@ scored AS (
            CASE WHEN c.embedding IS NULL OR coalesce(lib.sd, 0) = 0 THEN 0
                 ELSE ((1 - (c.embedding <=> q.qv)) - lib.m) / lib.sd END AS sem_z,
            lib.n AS lib_n,
+           COALESCE(uses.us, 0) AS use_sim,
+           CASE WHEN uses.us IS NULL OR coalesce(ulib.sd, 0) = 0 THEN 0
+                ELSE (uses.us - ulib.m) / ulib.sd END AS use_z,
+           ulib.n AS use_n,
            LEAST(1, COALESCE((SELECT sum(x.w) FROM unnest(q.qt, q.qw) AS x(t, w)
                                WHERE x.t = ANY(c.topics) OR x.t = ANY(c.reactions)), 0)) AS tm
-      FROM clips c JOIN candidates USING (id), q, lib
+      FROM clips c JOIN candidates USING (id) LEFT JOIN uses ON uses.clip_id = c.id, q, lib, ulib
 )
 SELECT {COLUMNS}, kw, sem, tm,
        %(wk)s * kw + %(ws)s * sem + %(wt)s * tm * (1 - LEAST(kw, 1))
+         -- only a line that stands out counts: below the bar every clip would get a little,
+         -- and that noise buried exact quote and name matches (measured)
+         + CASE WHEN use_n >= %(z_min_clips)s AND use_z >= %(min_use_z)s THEN %(wu)s * use_sim ELSE 0 END
          + %(wp)s * LEAST(ln(%(learn)s * shares + duplicates_seen), 3) AS score
   FROM scored
  WHERE duplicate_of IS NULL
@@ -91,7 +119,9 @@ SELECT {COLUMNS}, kw, sem, tm,
         -- big libraries: the clip must stand out; tiny ones (tests, a fresh install) cannot
         -- produce large z-scores, so they keep the plain similarity floor
         OR (lib_n >= %(z_min_clips)s AND sem_z >= %(min_sem_z)s)
-        OR (lib_n < %(z_min_clips)s AND sem >= %(min_sem)s))
+        OR (lib_n < %(z_min_clips)s AND sem >= %(min_sem)s)
+        -- situation lane: same rule, the best line must stand out among clips that have lines
+        OR (use_n >= %(z_min_clips)s AND use_z >= %(min_use_z)s))
  ORDER BY score DESC, id
  LIMIT %(limit)s OFFSET %(offset)s
 """
@@ -154,6 +184,8 @@ def search(conn, query: str, limit: int = 24, log_query: bool = True, intent: di
         "min_kw": config.MIN_KEYWORD, "min_sem": config.MIN_SEMANTIC,
         "min_sem_z": config.MIN_SEMANTIC_Z, "z_min_clips": config.SEMANTIC_Z_MIN_CLIPS,
         "min_tm": config.MIN_TOPIC, "limit": limit, "offset": offset,
+        "use_on": config.ENABLE_USES, "wu": config.W_USE if config.ENABLE_USES else 0.0,
+        "min_use_z": config.MIN_USE_Z,
     }).fetchall()
     if log_query:
         conn.execute(
