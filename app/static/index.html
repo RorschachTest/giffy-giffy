@@ -34,7 +34,7 @@
     <h1>That's how we <mark>say</mark> it<span class="tag">let that sink in.</span></h1>
     <p class="lede">Search a line you half remember, who's in it, or the situation you're in. Copy the link and the group chat sees the clip.</p>
   </section>
-  <!-- the search scrolls up with the page and then stays just under the nav (position: sticky) -->
+  <!-- the search scrolls up with the page, then stays at the top: under the nav on phones, level with it on desktop -->
   <div class="search" id="search">
     <div class="shell"><div class="core">
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -747,11 +747,25 @@ $("home").onclick = (e) => {
   const box = $("search");
   const nav = document.querySelector(".island-wrap");
   // stop just under the nav, whatever its height on this screen (it wraps on narrow phones)
+  const wide = matchMedia("(min-width: 900px)");
   const fitTop = () => {
     const cs = getComputedStyle(nav);
     if (cs.position !== "sticky" && cs.position !== "fixed") return;      // themes whose nav scrolls away
-    const below = (parseFloat(cs.top) || 0) + nav.offsetHeight + 10;
-    document.documentElement.style.setProperty("--search-top", `calc(${below}px + env(safe-area-inset-top))`);
+    const navTop = parseFloat(cs.top) || 0;
+    const island = nav.firstElementChild;
+    if (wide.matches && island) {
+      // desktop: same row as the island (centred on it), and never wider than the gap to its left
+      const islandTop = navTop + (parseFloat(cs.paddingTop) || 0);
+      const top = islandTop + (island.offsetHeight - box.offsetHeight) / 2;
+      document.documentElement.style.setProperty("--search-top", `${Math.max(8, top)}px`);
+      box.style.maxWidth = "";
+      const room = island.getBoundingClientRect().left - box.getBoundingClientRect().left - 16;
+      if (room > 0) box.style.maxWidth = `${Math.min(room, box.offsetWidth)}px`;
+    } else {
+      box.style.maxWidth = "";
+      const below = navTop + nav.offsetHeight + 10;
+      document.documentElement.style.setProperty("--search-top", `calc(${below}px + env(safe-area-inset-top))`);
+    }
   };
   const top = () => parseFloat(getComputedStyle(box).top) || 0;
   let io;
@@ -764,6 +778,7 @@ $("home").onclick = (e) => {
   };
   watch();
   addEventListener("resize", watch, { passive: true });
+  new ResizeObserver(() => fitTop()).observe(nav);      // the island grows when the account picture loads
 }
 // Search suggestions: an empty search box shows a search people can try, a new one every
 // 10 s; Tab (or tapping the ⇥ key) takes it, the same as typing it. The list lives in the
