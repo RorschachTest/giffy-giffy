@@ -32,7 +32,6 @@ body.scrolled .to-top { opacity: 1; pointer-events: auto; transform: none; }
   #open-upload .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   #open-upload { gap: 0; padding: 4px; }
 }
-}
 
 /* buttons: label + knob (the knob holds the icon) */
 .cta { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px;

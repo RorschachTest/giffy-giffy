@@ -44,10 +44,12 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
           border: 1px solid var(--hair); backdrop-filter: blur(24px) saturate(140%); -webkit-backdrop-filter: blur(24px) saturate(140%);
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); max-width: calc(100vw - 32px); }
 .wordmark { font-weight: 600; letter-spacing: -.03em; font-size: 16px; margin-right: 10px; }
-/* the search sticks just under the floating nav island (14px down, ~56px tall) */
+/* phones: the search sticks just under the island. Desktop: the island sits on the right
+   of the content column and the search sticks level with it, on the left (one row). */
 :root { --search-top: calc(82px + env(safe-area-inset-top)); }
-#q2 { color: #121212; font-weight: 500; }
-#q2::placeholder { color: #6b6560; }
+@media (min-width: 900px) {
+  .island-wrap { justify-content: flex-end; max-width: 1240px; margin: 0 auto; padding: 14px 24px 0; }
+}
 .to-top { border-radius: 999px; background: var(--cream); color: #121212; box-shadow: 0 10px 28px rgba(0, 0, 0, .45); }
 .to-top:hover { background: #ff5fa2; }
 
