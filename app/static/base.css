@@ -155,3 +155,7 @@ input[type=text], textarea, input[type=file] { width: 100%; outline: none; }
 .face-form input:disabled { opacity: .7; }
 .face-msg { flex-basis: 100%; font-size: 13px; color: var(--text-2, inherit); min-height: 1.2em; }
 .face-check { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 8px 10px; }
+
+/* Rotating search suggestions (the placeholder): end long ones with "…", smaller on phones */
+#q, #q2 { text-overflow: ellipsis; }
+@media (max-width: 480px) { #q::placeholder, #q2::placeholder { font-size: .82em; } }

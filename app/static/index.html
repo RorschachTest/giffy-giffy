@@ -777,6 +777,41 @@ new IntersectionObserver(([e]) => {
   else if (document.activeElement === $("q2")) $("q").focus({ preventScroll: true });
 }).observe(document.querySelector(".hero .search"));
 $("q2").oninput = () => { $("q").value = $("q2").value; $("q").oninput(); };
+// Search suggestions: an empty search box shows a search people can try, a new one every
+// 10 s; Tab takes it, the same as typing it. Searches for situations, which the clips'
+// "send it when" lines answer (checked on the live library, 2026-10-21).
+const SUGGEST = [
+  "nobody takes me seriously", "nothing makes any sense", "sorry I messed up", "friend ignores the video I sent",
+  "people talking nonsense", "the public will never forgive you", "brother always on his phone",
+  "mom calls while I'm busy working", "last minute energy before exams", "exams are here and I haven't studied",
+  "everyone got in trouble except me", "giving advice but doing nothing himself", "friend won't return the money he owes",
+  "you ruined my mood", "my life is full of sadness", "friend invites you and makes you pay the bill",
+  "his old prediction came true", "marriage proposal talks started at home", "laptop battery died at the worst time",
+  "is there any other way out",
+];
+const SUGGEST_EVERY_MS = 10000;
+const canTab = matchMedia("(pointer: fine)").matches;   // phones have no Tab key: just show the idea
+let suggestAt = Math.floor(Math.random() * SUGGEST.length);
+function showSuggestion() {
+  const s = SUGGEST[suggestAt];
+  $("q").placeholder = canTab ? `Try “${s}” — press Tab` : `“${s}”`;
+  $("q2").placeholder = canTab ? `“${s}” — Tab` : `“${s}”`;
+}
+showSuggestion();
+setInterval(() => {
+  if (document.hidden || $("q").value) return;            // only while the box is empty and on screen
+  suggestAt = (suggestAt + 1) % SUGGEST.length;
+  showSuggestion();
+}, SUGGEST_EVERY_MS);
+for (const id of ["q", "q2"]) {
+  $(id).addEventListener("keydown", (e) => {
+    if (e.key !== "Tab" || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey || $(id).value) return;
+    e.preventDefault();                                    // empty box + Tab: take the suggestion
+    $("q").value = $("q2").value = SUGGEST[suggestAt];
+    clearTimeout(timer);
+    setMode("search");
+  });
+}
 // Back to top, after about a screen and a half
 addEventListener("scroll", () => {
   const on = scrollY > innerHeight * 1.5;
