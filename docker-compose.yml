@@ -26,6 +26,9 @@ x-app: &app
     LAYA_QUERY_MIN: ${LAYA_QUERY_MIN:-0.3}
     TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}   # Vercel AI Gateway key: clip descriptions (Gemini)
     DESCRIBE_MODEL: ${DESCRIBE_MODEL:-google/gemini-2.5-flash}
+    ENABLE_USES: ${ENABLE_USES:-1}       # situation lane in search (clip_uses); 0 turns it off
+    W_USE: ${W_USE:-0.35}
+    MIN_USE_Z: ${MIN_USE_Z:-3.5}
     W_TOPIC: ${W_TOPIC:-0.25}
     MIN_TOPIC: ${MIN_TOPIC:-0.5}
     FACE_MATCH_THRESHOLD: ${FACE_MATCH_THRESHOLD:-0.42}
