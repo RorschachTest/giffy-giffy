@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en" data-theme="__THEME__">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#000000">
+<title>memeclip · Edit</title>
+<link rel="icon" href="/static/icon.svg?v=__VERSION__" type="image/svg+xml">
+<link rel="stylesheet" href="/static/base.css?v=__VERSION__">
+<link rel="stylesheet" href="/static/themes/__THEME__.css?v=__VERSION__">
+<style>
+  [hidden] { display: none !important; }
+  /* the editor: one column, the video on top, the timeline under it */
+  .ed { max-width: 1040px; margin: 0 auto; padding: 28px 16px 96px; display: grid; gap: 18px; }
+  .ed h1 { font-family: var(--display, inherit); font-size: clamp(30px, 5vw, 52px); line-height: .95; letter-spacing: -.035em;
+           margin: 0; font-weight: 800; text-wrap: balance; }
+  .ed .intro { color: var(--text-2); margin: 0; max-width: 60ch; }
+
+  .drop { display: grid; place-items: center; gap: 14px; text-align: center; min-height: 340px; padding: 32px;
+          border: 1.5px dashed var(--hair-strong); border-radius: 28px; background: var(--tray); cursor: pointer;
+          transition: border-color .2s, background .2s; }
+  .drop:hover, .drop.over { border-color: var(--subtitle); background: rgba(255, 213, 74, .05); }
+  .drop strong { font-family: var(--display, inherit); font-size: 22px; letter-spacing: -.02em; }
+  .drop span { color: var(--text-3); font-size: 14px; }
+  .drop svg.i { width: 34px; height: 34px; color: var(--subtitle); }
+
+  .player { position: relative; border-radius: 22px; overflow: hidden; background: #000; border: 1px solid var(--hair);
+            aspect-ratio: var(--ar, 16 / 9); max-height: 62vh; justify-self: center; width: 100%; }
+  .player video { width: 100%; height: 100%; display: block; object-fit: contain; }
+  .busy { position: absolute; inset: 0; display: none; place-items: center; align-content: center; gap: 12px;
+          background: rgba(5, 5, 5, .72); backdrop-filter: blur(6px); font-weight: 500; }
+  .busy.on { display: grid; }
+  .spin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--hair-strong); border-top-color: var(--subtitle);
+          animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .bar .time { font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 14px; margin-right: auto; }
+  .btn { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--hair-strong);
+         background: var(--core); display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; }
+  .btn:hover { border-color: var(--text-3); }
+  .btn[disabled] { opacity: .4; pointer-events: none; }
+  .btn.primary { background: var(--cream); color: #111; border-color: transparent; font-weight: 600; }
+  .btn.round { width: 44px; padding: 0; justify-content: center; }
+
+  /* timeline: filmstrip, inserted memes, the insert marker and the playhead */
+  .tl { position: relative; height: 72px; border-radius: 14px; background: var(--core) center / 100% 100% no-repeat;
+        border: 1px solid var(--hair); cursor: ew-resize; touch-action: none; user-select: none; margin-top: 46px; }
+  .tl::after { content: ""; position: absolute; inset: 0; border-radius: inherit;
+               background: linear-gradient(transparent 55%, rgba(0, 0, 0, .55)); pointer-events: none; }
+  .seg { position: absolute; top: -1px; bottom: -1px; border-radius: 8px; background: rgba(255, 213, 74, .28);
+         border: 2px solid var(--subtitle); box-shadow: 0 0 0 1px rgba(0, 0, 0, .5); pointer-events: none; z-index: 1; }
+  .seg span { position: absolute; left: 6px; bottom: 4px; right: 4px; font-size: 11px; font-weight: 600; color: #111;
+              background: var(--subtitle); border-radius: 6px; padding: 1px 6px; white-space: nowrap; overflow: hidden;
+              text-overflow: ellipsis; max-width: max-content; }
+  .cut { position: absolute; top: 6px; bottom: 6px; width: 0; border-left: 2px dashed var(--subtitle); z-index: 2;
+         pointer-events: none; opacity: .9; }
+  .head { position: absolute; top: -10px; bottom: -10px; width: 2px; margin-left: -1px; background: var(--cream);
+          z-index: 3; pointer-events: none; box-shadow: 0 0 12px rgba(244, 237, 228, .5); }
+  .head::before { content: ""; position: absolute; top: -2px; left: 50%; width: 14px; height: 14px; margin-left: -7px;
+                  border-radius: 50%; background: var(--cream); }
+  .find { position: absolute; bottom: calc(100% + 12px); transform: translateX(-50%); z-index: 4; white-space: nowrap;
+          min-height: 38px; padding: 0 14px 0 10px; border-radius: 999px; border: 0; background: var(--subtitle); color: #111;
+          font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;
+          box-shadow: 0 6px 20px rgba(0, 0, 0, .45); transition: transform .15s var(--spring, ease); }
+  .find:hover { transform: translateX(-50%) translateY(-2px); }
+  .find svg.i { width: 18px; height: 18px; stroke-width: 2; }
+  .ticks { display: flex; justify-content: space-between; color: var(--text-3); font-size: 12px;
+           font-variant-numeric: tabular-nums; padding: 0 2px; }
+  .hint { color: var(--text-3); font-size: 13px; margin: 0; }
+
+  /* dialog: search, then crop + look */
+  dialog { width: min(760px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); border: 1px solid var(--hair-strong);
+           border-radius: 26px; background: #0d0d10; color: inherit; padding: 0; }
+  dialog::backdrop { background: rgba(0, 0, 0, .7); backdrop-filter: blur(8px); }
+  .dlg { padding: 20px; display: grid; gap: 16px; }
+  .dlg header { display: flex; align-items: center; gap: 10px; }
+  .dlg header h2 { margin: 0 auto 0 0; font-family: var(--display, inherit); font-size: 22px; letter-spacing: -.02em; }
+  .q { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 16px; border-radius: 999px;
+       background: var(--cream); color: #111; }
+  .q input { flex: 1; border: 0; outline: none; background: none; color: #111; font-size: 16px; min-width: 0; }
+  .q svg.i { color: #111; }
+  .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .pick { display: grid; gap: 6px; padding: 0; border: 2px solid transparent; border-radius: 16px; background: none; text-align: left; }
+  .pick video { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 14px; background: var(--core); display: block; }
+  .pick span { font-size: 13px; color: var(--text-2); padding: 0 4px 4px; overflow: hidden; text-overflow: ellipsis;
+               display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .pick:hover, .pick:focus-visible { border-color: var(--subtitle); }
+  .empty { color: var(--text-3); margin: 0; }
+
+  .cropbox { position: relative; justify-self: center; max-width: 100%; max-height: 46vh; aspect-ratio: var(--mar, 1);
+             border-radius: 14px; overflow: hidden; background: #000; touch-action: none; }
+  .cropbox video { width: 100%; height: 100%; display: block; }
+  .sel { position: absolute; border: 2px solid var(--subtitle); box-shadow: 0 0 0 9999px rgba(0, 0, 0, .6); cursor: move;
+         background-image: linear-gradient(rgba(255,255,255,.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.18) 1px, transparent 1px);
+         background-size: 33.33% 33.33%; background-position: -1px -1px; }
+  .sel i { position: absolute; right: -9px; bottom: -9px; width: 18px; height: 18px; border-radius: 50%;
+           background: var(--subtitle); border: 3px solid #0d0d10; cursor: nwse-resize; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .row .lbl { color: var(--text-3); font-size: 13px; min-width: 52px; }
+  .chip { min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--hair-strong); background: none; font-size: 14px; }
+  .chip[aria-pressed="true"] { background: var(--subtitle); color: #111; border-color: transparent; font-weight: 600; }
+  .err { color: var(--danger); margin: 0; min-height: 1.2em; font-size: 14px; }
+  @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } .find { transition: none; } }
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="island-wrap">
+  <nav class="island" aria-label="memeclip">
+    <a class="wordmark" href="/" translate="no">memeclip</a>
+    <a class="cta ghost" href="/">Library</a>
+    <button id="restart" class="cta ghost" type="button" hidden>New video</button>
+  </nav>
+</div>
+
+<main class="ed">
+  <div>
+    <h1>Drop a meme into your video</h1>
+    <p class="intro">Drag along the timeline to the moment, tap the search, pick a clip, crop it, give it a look. It goes in right there.</p>
+  </div>
+
+  <label class="drop" id="drop">
+    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></svg>
+    <strong>Choose a video or drop it here</strong>
+    <span>mp4, mov, webm · up to 10 minutes, 300 MB</span>
+    <input id="file" type="file" accept="video/*" class="sr">
+  </label>
+
+  <section id="editor" hidden>
+    <div class="player" id="player">
+      <video id="video" playsinline preload="auto"></video>
+      <div class="busy" id="busy" role="status" aria-live="polite"><div class="spin"></div><span id="busy-text">Working…</span></div>
+    </div>
+
+    <div class="tl" id="tl" role="slider" tabindex="0" aria-label="Timeline" aria-valuemin="0">
+      <button class="find" id="find" type="button">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <span id="find-label">Add meme</span>
+      </button>
+      <div class="cut" id="cut"></div>
+      <div class="head" id="head"></div>
+    </div>
+    <div class="ticks"><span>0:00</span><span id="end-tick"></span></div>
+
+    <div class="bar">
+      <button class="btn round" id="play" type="button" aria-label="Play">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path id="play-icon" d="M8 5v14l11-7z"/></svg>
+      </button>
+      <span class="time" id="time">0:00 / 0:00</span>
+      <button class="btn" id="undo" type="button" disabled>
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>Undo
+      </button>
+      <a class="btn primary" id="download" download="memeclip-edit.mp4">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12"/><path d="m6 10 6 6 6-6"/><path d="M4 20h16"/></svg>Download
+      </a>
+    </div>
+    <p class="hint" id="hint" role="status" aria-live="polite"></p>
+  </section>
+</main>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlg-title">
+  <form method="dialog" class="dlg" id="step-search">
+    <header>
+      <h2 id="dlg-title">Find a meme</h2>
+      <button class="btn round" value="close" aria-label="Close"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </header>
+    <label class="q">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <span class="sr">Search memes</span>
+      <input id="mq" type="search" placeholder="A line, a face or a feeling…" autocomplete="off" enterkeyhint="search">
+    </label>
+    <div class="results" id="results"></div>
+  </form>
+
+  <div class="dlg" id="step-edit" hidden>
+    <header>
+      <button class="btn round" id="back" type="button" aria-label="Back to results"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <h2>Crop &amp; look</h2>
+    </header>
+    <div class="cropbox" id="cropbox">
+      <video id="mvideo" muted loop playsinline autoplay></video>
+      <div class="sel" id="sel"><i id="grip"></i></div>
+    </div>
+    <div class="row" role="group" aria-label="Crop shape">
+      <span class="lbl">Crop</span>
+      <button class="chip" type="button" data-ar="free" aria-pressed="true">Free</button>
+      <button class="chip" type="button" data-ar="video" aria-pressed="false">Fit my video</button>
+      <button class="chip" type="button" data-ar="1" aria-pressed="false">Square</button>
+      <button class="chip" type="button" data-ar="reset" aria-pressed="false">Whole clip</button>
+    </div>
+    <div class="row" role="group" aria-label="Look" id="looks"><span class="lbl">Look</span></div>
+    <p class="err" id="err" role="alert"></p>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn primary" id="insert" type="button">Insert</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+const $ = id => document.getElementById(id);
+const LOOKS = { none: "none", mono: "grayscale(1)", sepia: "sepia(1)", vivid: "saturate(1.6) contrast(1.1)",
+                noir: "grayscale(1) contrast(1.5)", fried: "saturate(3) contrast(1.8)" };
+const NAMES = { none: "Original", mono: "Mono", sepia: "Sepia", vivid: "Vivid", noir: "Noir", fried: "Deep fried" };
+const video = $("video"), tl = $("tl");
+let edit = null, at = 0, clip = null, look = "none", crop = { x: 0, y: 0, w: 1, h: 1 }, ratio = null;
+
+const fmt = s => { s = Math.max(0, s || 0); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`; };
+const fmtAt = s => s < 60 ? `${s.toFixed(1)}s` : fmt(s);
+async function api(url, opts) {
+  const r = await fetch(url, opts);
+  if (r.status === 401) { location.href = "/login"; throw new Error("sign in"); }
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || `Something went wrong (${r.status})`);
+  return body;
+}
+function busy(text) { $("busy").classList.toggle("on", !!text); $("busy-text").textContent = text || ""; }
+const snap = t => Math.max(0, ...edit.keyframes.filter(k => k <= t + 1e-3));
+
+// ---- load / upload -------------------------------------------------------
+function show(e, seek) {
+  edit = e;
+  history.replaceState(null, "", `#${e.id}`);
+  $("drop").hidden = true; $("editor").hidden = false; $("restart").hidden = false;
+  $("player").style.setProperty("--ar", `${e.width} / ${e.height}`);
+  video.src = e.url;
+  video.addEventListener("loadedmetadata", () => { video.currentTime = seek ?? 0; }, { once: true });
+  tl.style.backgroundImage = `url("${e.strip}")`;
+  tl.setAttribute("aria-valuemax", e.duration.toFixed(1));
+  $("end-tick").textContent = fmt(e.duration);
+  $("download").href = e.url;
+  $("undo").disabled = !e.can_undo;
+  tl.querySelectorAll(".seg").forEach(n => n.remove());
+  for (const s of e.inserts) {
+    const seg = document.createElement("div");
+    seg.className = "seg";
+    seg.style.left = `${s.at / e.duration * 100}%`;
+    seg.style.width = `${Math.max(.6, s.duration / e.duration * 100)}%`;
+    seg.innerHTML = `<span></span>`;
+    seg.firstChild.textContent = s.title || "meme";
+    tl.append(seg);
+  }
+  setAt(seek ?? 0);
+  $("hint").textContent = e.inserts.length
+    ? `${e.inserts.length} meme${e.inserts.length > 1 ? "s" : ""} added. Keep going, or download.`
+    : "Drag the timeline to the moment you want, then tap “Add meme”.";
+}
+
+async function upload(file) {
+  if (!file) return;
+  $("drop").hidden = true; $("editor").hidden = false; busy("Preparing your video… this happens once");
+  const form = new FormData(); form.append("file", file);
+  try { show(await api("/edits", { method: "POST", body: form })); }
+  catch (err) { $("drop").hidden = false; $("editor").hidden = true; alert(err.message); }
+  finally { busy(""); }
+}
+$("file").addEventListener("change", e => upload(e.target.files[0]));
+const drop = $("drop");
+["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => upload(e.dataTransfer.files[0]));
+$("restart").addEventListener("click", () => { location.hash = ""; location.reload(); });
+
+// ---- timeline ---------------------------------------------------------------
+function setAt(t) {
+  at = Math.min(Math.max(0, t), edit.duration);
+  const pct = at / edit.duration * 100;
+  $("head").style.left = `${pct}%`;
+  $("find").style.left = `clamp(70px, ${pct}%, calc(100% - 70px))`;
+  const cut = snap(at);
+  $("cut").style.left = `${cut / edit.duration * 100}%`;
+  $("find-label").textContent = `Add meme at ${fmtAt(cut)}`;
+  tl.setAttribute("aria-valuenow", at.toFixed(1));
+  tl.setAttribute("aria-valuetext", fmt(at));
+  $("time").textContent = `${fmt(at)} / ${fmt(edit.duration)}`;
+}
+function fromPointer(e) {
+  const r = tl.getBoundingClientRect();
+  return (e.clientX - r.left) / r.width * edit.duration;
+}
+let dragging = false;
+tl.addEventListener("pointerdown", e => {
+  if (e.target.closest(".find")) return;
+  dragging = true; tl.setPointerCapture(e.pointerId); video.pause();
+  setAt(fromPointer(e)); video.currentTime = at;
+});
+tl.addEventListener("pointermove", e => { if (dragging) { setAt(fromPointer(e)); video.currentTime = at; } });
+tl.addEventListener("pointerup", () => { dragging = false; });
+tl.addEventListener("keydown", e => {
+  const step = { ArrowLeft: -1, ArrowRight: 1, PageDown: -5, PageUp: 5 }[e.key];
+  if (step === undefined) return;
+  e.preventDefault(); video.pause(); setAt(at + step); video.currentTime = at;
+});
+video.addEventListener("timeupdate", () => { if (!dragging && !video.paused) setAt(video.currentTime); });
+const playPath = { play: "M8 5v14l11-7z", pause: "M7 5h3v14H7zM14 5h3v14h-3z" };
+video.addEventListener("play", () => { $("play-icon").setAttribute("d", playPath.pause); $("play").setAttribute("aria-label", "Pause"); });
+video.addEventListener("pause", () => { $("play-icon").setAttribute("d", playPath.play); $("play").setAttribute("aria-label", "Play"); });
+$("play").addEventListener("click", () => video.paused ? video.play() : video.pause());
+$("undo").addEventListener("click", async () => {
+  busy("Undoing…");
+  try { show(await api(`/edits/${edit.id}/undo`, { method: "POST" }), at); } catch (err) { alert(err.message); } finally { busy(""); }
+});
+
+// ---- search -------------------------------------------------------------------
+const dlg = $("dlg");
+$("find").addEventListener("click", () => {
+  video.pause(); step("search"); dlg.showModal(); $("mq").focus(); if (!$("results").children.length) search("");
+});
+function step(name) { $("step-search").hidden = name !== "search"; $("step-edit").hidden = name !== "edit"; }
+let timer, ticket = 0;
+$("mq").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => search($("mq").value), 300); });
+$("mq").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); clearTimeout(timer); search($("mq").value); } });
+async function search(q) {
+  const mine = ++ticket;
+  const data = await api(`/search?q=${encodeURIComponent(q.trim())}&limit=4`).catch(() => ({ results: [] }));
+  if (mine !== ticket) return;
+  const box = $("results"); box.replaceChildren();
+  if (!data.results.length) { box.innerHTML = `<p class="empty">Nothing for that. Try other words.</p>`; return; }
+  for (const c of data.results) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "pick";
+    b.innerHTML = `<video muted loop playsinline preload="none"></video><span></span>`;
+    const v = b.querySelector("video"); v.src = c.url; if (c.thumb) v.poster = c.thumb;
+    b.querySelector("span").textContent = c.title || c.caption || "Untitled";
+    b.addEventListener("pointerenter", () => v.play().catch(() => {}));
+    b.addEventListener("pointerleave", () => v.pause());
+    b.addEventListener("click", () => choose(c));
+    box.append(b);
+  }
+}
+
+// ---- crop + look ----------------------------------------------------------------
+const mv = $("mvideo"), sel = $("sel"), box = $("cropbox");
+for (const k of Object.keys(LOOKS)) {
+  const b = document.createElement("button");
+  b.className = "chip"; b.type = "button"; b.dataset.look = k; b.textContent = NAMES[k];
+  b.setAttribute("aria-pressed", k === "none");
+  b.addEventListener("click", () => setLook(k));
+  $("looks").append(b);
+}
+function setLook(k) {
+  look = k; mv.style.filter = LOOKS[k];
+  $("looks").querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.look === k));
+}
+function choose(c) {
+  clip = c; crop = { x: 0, y: 0, w: 1, h: 1 }; ratio = null; setLook("none"); $("err").textContent = "";
+  document.querySelectorAll("[data-ar]").forEach(b => b.setAttribute("aria-pressed", b.dataset.ar === "free"));
+  mv.src = c.url;
+  mv.addEventListener("loadedmetadata", () => { box.style.setProperty("--mar", `${mv.videoWidth} / ${mv.videoHeight}`); drawSel(); }, { once: true });
+  $("insert").textContent = `Insert at ${fmtAt(snap(at))}`;
+  step("edit");
+}
+$("back").addEventListener("click", () => { mv.pause(); step("search"); });
+function drawSel() {
+  Object.assign(sel.style, { left: `${crop.x * 100}%`, top: `${crop.y * 100}%`, width: `${crop.w * 100}%`, height: `${crop.h * 100}%` });
+}
+// crop shape: a ratio in screen pixels, turned into the box's fractions
+function fitRatio(r) {
+  const bw = box.clientWidth, bh = box.clientHeight;
+  let w = bw, h = bw / r; if (h > bh) { h = bh; w = bh * r; }
+  crop = { w: w / bw, h: h / bh, x: (1 - w / bw) / 2, y: (1 - h / bh) / 2 };
+}
+document.querySelectorAll("[data-ar]").forEach(b => b.addEventListener("click", () => {
+  const v = b.dataset.ar;
+  ratio = v === "video" ? edit.width / edit.height : v === "1" ? 1 : null;
+  if (v === "reset") crop = { x: 0, y: 0, w: 1, h: 1 }; else if (ratio) fitRatio(ratio);
+  document.querySelectorAll("[data-ar]").forEach(o => o.setAttribute("aria-pressed", o === b && v !== "reset" || (v === "reset" && o.dataset.ar === "free")));
+  drawSel();
+}));
+let drag = null;
+sel.addEventListener("pointerdown", e => {
+  e.preventDefault(); sel.setPointerCapture(e.pointerId);
+  drag = { mode: e.target === $("grip") ? "size" : "move", x: e.clientX, y: e.clientY, start: { ...crop } };
+});
+sel.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const dx = (e.clientX - drag.x) / box.clientWidth, dy = (e.clientY - drag.y) / box.clientHeight, s = drag.start;
+  if (drag.mode === "move") {
+    crop.x = Math.min(Math.max(0, s.x + dx), 1 - s.w); crop.y = Math.min(Math.max(0, s.y + dy), 1 - s.h);
+  } else {
+    let w = Math.min(Math.max(.1, s.w + dx), 1 - s.x), h = Math.min(Math.max(.1, s.h + dy), 1 - s.y);
+    if (ratio) {          // keep the chosen shape: height follows width, within the frame
+      const k = box.clientWidth / box.clientHeight / ratio;
+      h = w * k; if (h > 1 - s.y) { h = 1 - s.y; w = h / k; }
+    }
+    crop.w = w; crop.h = h;
+  }
+  drawSel();
+});
+sel.addEventListener("pointerup", () => { drag = null; });
+
+$("insert").addEventListener("click", async () => {
+  const cut = snap(at);
+  $("err").textContent = ""; $("insert").disabled = true;
+  dlg.close(); mv.pause(); busy(`Adding “${clip.title || "meme"}” at ${fmtAt(cut)}…`);
+  const r = v => Math.round(v * 1000) / 1000;
+  try {
+    show(await api(`/edits/${edit.id}/insert`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clip_id: clip.id, at, filter: look, crop: { x: r(crop.x), y: r(crop.y), w: r(crop.w), h: r(crop.h) } }),
+    }), cut);
+    video.play().catch(() => {});
+  } catch (err) { dlg.showModal(); step("edit"); $("err").textContent = err.message; }
+  finally { busy(""); $("insert").disabled = false; }
+});
+dlg.addEventListener("close", () => mv.pause());
+
+// resume an edit from the address (#<id>)
+if (location.hash.length > 1) {
+  busy("Loading…"); $("drop").hidden = true; $("editor").hidden = false;
+  api(`/edits/${location.hash.slice(1)}`).then(e => show(e))
+    .catch(() => { history.replaceState(null, "", "/edit"); $("drop").hidden = false; $("editor").hidden = true; })
+    .finally(() => busy(""));
+}
+</script>
+</body>
+</html>

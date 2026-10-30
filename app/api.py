@@ -14,6 +14,7 @@
     POST  /upload               drop a clip into the inbox from the browser
     GET   /media/...            the clip files
     GET   /c/{share_id}         share link: video page that chat apps unfurl (share.py)
+    GET   /edit, /edits/...     meme insert editor: drop clips into your own video (edit.py)
     GET   /clips/{id}/humor     why the clip is funny on its own (understand.py)
     POST  /understand           what a meme says sent after some chat messages, and why it is funny
     POST  /understand/feedback  what it really meant / whether it landed: the engine learns from it
@@ -35,7 +36,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from . import auth, config, db, faces, indexing, intent, laya, search as search_mod, share as share_mod, storage, understand as und
+from . import auth, config, db, edit as edit_mod, faces, indexing, intent, laya, search as search_mod, share as share_mod, storage, understand as und
 from .embed import get_embedder
 
 STATIC = Path(__file__).with_name("static")
@@ -93,7 +94,7 @@ async def require_sign_in(request: Request, call_next):
     request.state.user = user
     if auth.allowed(user, need):
         return await call_next(request)
-    if request.method == "GET" and request.url.path == "/":
+    if request.method == "GET" and request.url.path in ("/", "/edit"):
         state = "" if user is None else f"?state={user['status']}"
         return RedirectResponse("/login" + state, status_code=303)
     if user is None:
@@ -120,6 +121,7 @@ def media_file(key: str, request: Request):
 
 
 app.include_router(share_mod.router)
+app.include_router(edit_mod.router)
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
 
 
@@ -155,6 +157,11 @@ def _themed_page(name: str, theme: str | None, me: dict | None = None) -> HTMLRe
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, theme: str | None = None) -> HTMLResponse:
     return _themed_page("index.html", theme, _me(request))
+
+
+@app.get("/edit", response_class=HTMLResponse)
+def edit_page(theme: str | None = None) -> HTMLResponse:
+    return _themed_page("edit.html", theme)
 
 
 # --------------------------------------------------------------------------- #
