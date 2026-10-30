@@ -31,7 +31,7 @@ from . import config, db, media, storage
 router = APIRouter()
 
 EDITS = config.DATA_DIR / "edits"
-MAX_BYTES = 300 * 1024 * 1024
+MAX_BYTES = 95 * 1024 * 1024    # Cloudflare (free plan) refuses request bodies over 100 MB
 MAX_SECONDS = 10 * 60
 MAX_VERSIONS = 30
 FPS = 30

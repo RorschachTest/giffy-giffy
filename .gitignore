@@ -12,3 +12,6 @@ data/**
 # copies made by scripts/new_space.sh (data/<name>/...) and its .env backup
 data/*/*/.gitkeep
 .env.bak
+
+# Private notes and architecture docs: kept on this machine, never pushed.
+docs/private/
