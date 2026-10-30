@@ -232,16 +232,35 @@ function flash(b, text, back) {
 
 // Hover to play: a clip plays (muted) while the pointer is over it and stops when
 // it leaves. Only one clip plays at a time. Click toggles sound. Touch screens have
-// no hover, so a tap plays or stops instead. Keyboard focus plays too. With reduced
-// motion nothing plays on its own: click or Enter plays.
+// no hover: the clip most in view plays as you scroll, a tap turns its sound on or
+// off, and once sound is on the next clips play with sound too. Keyboard focus plays.
+// With reduced motion nothing plays on its own: click, tap or Enter plays.
 let playing = null;
+let soundOn = false;                      // touch: the last tap asked for sound
+const touchScreen = matchMedia("(hover: none)");
 
-function playOnly(frame) {
+function playOnly(frame, sound = false) {
   if (playing && playing !== frame) stopClip(playing);
   playing = frame;
   frame.classList.add("live");
-  frame._video.play().catch(() => {});   // muted autoplay is always allowed
+  const v = frame._video;
+  v.muted = !sound; frame._sound(sound);
+  v.play().catch(() => {                  // sound refused without a tap: play muted instead
+    if (!sound) return;
+    v.muted = true; frame._sound(false); v.play().catch(() => {});
+  });
 }
+
+// touch screens: play the clip that is most in view (at least 60% of it)
+const inView = new Map();
+const autoplayer = ("IntersectionObserver" in window) ? new IntersectionObserver((entries) => {
+  for (const e of entries) e.isIntersecting ? inView.set(e.target, e.intersectionRatio) : inView.delete(e.target);
+  if (!touchScreen.matches || reduceMotion.matches) return;
+  let best = null, top = .6;
+  for (const [f, r] of inView) if (r >= top && f.isConnected) { best = f; top = r; }
+  if (best && best !== playing) playOnly(best, soundOn);
+  else if (!best && playing && (inView.get(playing) || 0) < .3) stopClip(playing);
+}, { threshold: [0, .3, .6, .8, 1] }) : null;
 
 function stopClip(frame) {
   const v = frame._video;
@@ -281,15 +300,20 @@ function card(c, i) {
   frame.onfocus = () => { if (frame.matches(":focus-visible") && !reduceMotion.matches) playOnly(frame); };
   frame.onblur = () => stopClip(frame);
   const toggle = (touch) => {
-    if (touch || reduceMotion.matches) {                       // tap, or reduced motion: play or stop
-      if (frame.classList.contains("live")) stopClip(frame); else playOnly(frame);
+    if (touch && !reduceMotion.matches) {                     // tap: sound on, or off if it is on
+      soundOn = !(frame.classList.contains("live") && !video.muted);
+      if (!frame.classList.contains("live")) playOnly(frame, soundOn);
+      else { video.muted = !soundOn; frame._sound(soundOn); if (video.paused) video.play().catch(() => {}); }
+    } else if (touch || reduceMotion.matches) {               // reduced motion: play (with sound) or stop
+      if (frame.classList.contains("live")) stopClip(frame); else playOnly(frame, true);
     } else {                                                  // mouse: already playing, toggle sound
       video.muted = !video.muted;
       frame._sound(!video.muted);
-      if (video.paused) playOnly(frame);
+      if (video.paused) playOnly(frame, !video.muted);
     }
   };
   frame.onclick = (e) => toggle(!!e.pointerType && e.pointerType !== "mouse");
+  autoplayer?.observe(frame);
   frame.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(true); } };
 
   // Dragging the video out drops the .mp4 file (Chrome / Edge read DownloadURL).
