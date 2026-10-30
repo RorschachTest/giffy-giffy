@@ -17,6 +17,20 @@
   .ed h1 { font-family: var(--display, inherit); font-size: clamp(30px, 5vw, 52px); line-height: .95; letter-spacing: -.035em;
            margin: 0; font-weight: 800; text-wrap: balance; }
   .ed .intro { color: var(--text-2); margin: 0; max-width: 62ch; }
+  body.open .ed h1 { font-size: clamp(24px, 3.4vw, 34px); }
+  body.open .steps, body.open .ed .intro { display: none; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .steps li { display: flex; gap: 10px; align-items: flex-start; padding: 14px; border-radius: 18px; background: var(--tray);
+              border: 1px solid var(--hair); color: var(--text-2); font-size: 14px; line-height: 1.35; }
+  .steps b { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+             background: var(--subtitle); color: #111; font-size: 13px; }
+  @media (max-width: 640px) { .steps { grid-template-columns: 1fr; } }
+  .picked { display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 10px; border-radius: 18px;
+            background: rgba(255, 213, 74, .08); border: 1px solid rgba(255, 213, 74, .35); }
+  .picked img { width: 52px; height: 52px; border-radius: 12px; object-fit: cover; background: var(--core); }
+  .picked div { display: grid; gap: 2px; min-width: 0; }
+  .picked small { color: var(--text-3); }
+  .picked strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .drop { display: grid; place-items: center; gap: 14px; text-align: center; min-height: 340px; padding: 32px;
           border: 1.5px dashed var(--hair-strong); border-radius: 28px; background: var(--tray); cursor: pointer;
@@ -28,7 +42,14 @@
 
   .player { position: relative; border-radius: 22px; overflow: hidden; background: #000; border: 1px solid var(--hair);
             aspect-ratio: var(--ar, 16 / 9); max-height: 62vh; justify-self: center; max-width: 100%; }
-  .player canvas { width: 100%; height: 100%; display: block; }
+  .player canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
+  .bigplay { position: absolute; left: 50%; top: 50%; width: 72px; height: 72px; margin: -36px 0 0 -36px; border-radius: 50%;
+             border: 0; background: rgba(5, 5, 5, .55); backdrop-filter: blur(8px); color: var(--cream); display: grid;
+             place-items: center; transition: opacity .2s, transform .2s; }
+  .bigplay svg.i { width: 30px; height: 30px; fill: currentColor; stroke: none; margin-left: 4px; }
+  .player.playing .bigplay { opacity: 0; transform: scale(.85); pointer-events: none; }
+  .meter { width: min(260px, 70%); height: 6px; border-radius: 99px; background: var(--hair-strong); overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 0; background: var(--subtitle); transition: width .25s linear; }
   .busy { position: absolute; inset: 0; display: none; place-items: center; align-content: center; gap: 12px; padding: 20px;
           background: rgba(5, 5, 5, .74); backdrop-filter: blur(6px); font-weight: 500; text-align: center; }
   .busy.on { display: grid; }
@@ -40,7 +61,7 @@
   .bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .bar .time { font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 14px; margin-right: auto; }
   .btn { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--hair-strong);
-         background: var(--core); display: inline-flex; align-items: center; gap: 8px; color: inherit; }
+         background: var(--core); display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; }
   .btn:hover { border-color: var(--text-3); }
   .btn[disabled] { opacity: .4; pointer-events: none; }
   .btn.primary { background: var(--cream); color: #111; border-color: transparent; font-weight: 600; }
@@ -73,8 +94,18 @@
           box-shadow: 0 6px 20px rgba(0, 0, 0, .45); transition: transform .15s var(--spring, ease); }
   .find:hover { transform: translateX(-50%) translateY(-2px); }
   .find svg.i { width: 18px; height: 18px; stroke-width: 2; }
-  .ticks { display: flex; justify-content: space-between; color: var(--text-3); font-size: 12px;
-           font-variant-numeric: tabular-nums; padding: 0 2px; }
+  .ticks { position: relative; height: 18px; color: var(--text-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .ticks span { position: absolute; top: 2px; transform: translateX(-50%); white-space: nowrap; }
+  .ticks span::before { content: ""; position: absolute; left: 50%; top: -4px; width: 1px; height: 4px; background: var(--hair-strong); }
+  .ticks span:first-child { transform: none; }
+  .keys { color: var(--text-3); font-size: 12px; margin: 0; }
+  .keys kbd { font: inherit; font-size: 11px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--hair-strong); color: var(--text-2); }
+  @media (hover: none) { .keys { display: none; } }
+  .done { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px; border-radius: 18px;
+          background: rgba(124, 240, 106, .07); border: 1px solid rgba(124, 240, 106, .3); }
+  .done p { margin: 0 auto 0 4px; color: var(--text-2); font-size: 14px; }
+  @media (max-width: 480px) { #undo .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+                              #undo { width: 44px; padding: 0; justify-content: center; } }
   .hint { color: var(--text-3); font-size: 13px; margin: 0; }
 
   /* dialog: search, then trim + crop + effect */
@@ -94,8 +125,14 @@
   .pick span { font-size: 13px; color: var(--text-2); padding: 0 4px 4px; overflow: hidden; text-overflow: ellipsis;
                display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .pick:hover, .pick:focus-visible { border-color: var(--subtitle); }
+  .pick { position: relative; }
+  .pick em { position: absolute; right: 8px; top: 8px; font-style: normal; font-size: 11px; font-weight: 600; padding: 2px 7px;
+             border-radius: 999px; background: rgba(0, 0, 0, .65); color: #fff; font-variant-numeric: tabular-nums; }
   .empty { color: var(--text-3); margin: 0; }
 
+  .dlg .foot { position: sticky; bottom: -20px; margin: 0 -20px -20px; padding: 14px 20px 20px; background: #0d0d10;
+               border-top: 1px solid var(--hair); display: flex; gap: 10px; justify-content: flex-end; z-index: 2; }
+  @media (max-width: 640px) { .cropbox { max-height: 30vh !important; } .dlg { gap: 12px; } }
   .cropbox { position: relative; justify-self: center; max-width: 100%; max-height: 40vh; aspect-ratio: var(--mar, 1);
              border-radius: 14px; overflow: hidden; background: #000; touch-action: none; }
   .cropbox video, .cropbox canvas { width: 100%; height: 100%; display: block; }
@@ -139,10 +176,14 @@
 
 <main class="ed">
   <div>
-    <h1>Drop a meme into your video</h1>
-    <p class="intro">Drag along the timeline to the moment, tap the search, pick a clip, trim and crop it, add an effect.
-      Drag a meme's yellow chip under the timeline to move it. Nothing is joined until you export, and your video never leaves this browser.</p>
+    <h1>Put a meme in your video</h1>
   </div>
+  <ol class="steps">
+    <li><b>1</b><span>Open your video. It stays on your phone or computer, nothing is uploaded.</span></li>
+    <li><b>2</b><span>Stop at the moment and tap <strong>Add meme</strong>. Trim it, crop it, add hearts or bubbles.</span></li>
+    <li><b>3</b><span>Watch it back, move memes around, then <strong>Export</strong> your video.</span></li>
+  </ol>
+  <div class="picked" id="picked" hidden><img id="picked-img" alt=""><div><small>Ready to add</small><strong id="picked-title"></strong></div></div>
 
   <label class="drop" id="drop">
     <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></svg>
@@ -154,7 +195,8 @@
   <section id="editor" hidden>
     <div class="player" id="player">
       <canvas id="screen"></canvas>
-      <div class="busy" id="busy" role="status" aria-live="polite"><div class="spin"></div><span id="busy-text"></span><small id="busy-sub"></small></div>
+      <button class="bigplay" id="bigplay" type="button" aria-label="Play"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>
+      <div class="busy" id="busy" role="status" aria-live="polite"><div class="spin" id="spin"></div><span id="busy-text"></span><div class="meter" id="meter" hidden><i id="meter-fill"></i></div><small id="busy-sub"></small></div>
     </div>
 
     <div class="tl" id="tl">
@@ -166,7 +208,7 @@
       <div class="lane" id="lane" aria-label="Memes: drag to move, click to edit"></div>
       <div class="head" id="head"></div>
     </div>
-    <div class="ticks"><span>0:00</span><span id="end-tick"></span></div>
+    <div class="ticks" id="ticks"></div>
 
     <div class="bar">
       <button class="btn round" id="play" type="button" aria-label="Play">
@@ -174,13 +216,15 @@
       </button>
       <span class="time" id="time">0:00 / 0:00</span>
       <button class="btn" id="undo" type="button" disabled>
-        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>Undo
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg><span class="lbl">Undo</span>
       </button>
       <button class="btn primary" id="export" type="button" disabled>
         <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12"/><path d="m6 10 6 6 6-6"/><path d="M4 20h16"/></svg>Export
       </button>
     </div>
     <p class="hint" id="hint" role="status" aria-live="polite"></p>
+    <div class="done" id="done" hidden><p id="done-text"></p><button class="btn" id="share" type="button" hidden>Share</button><a class="btn primary" id="save-file">Download</a></div>
+    <p class="keys"><kbd>Space</kbd> play · <kbd>←</kbd><kbd>→</kbd> move · <kbd>A</kbd> add meme · <kbd>⌘Z</kbd> undo</p>
   </section>
 </main>
 </div>
@@ -224,7 +268,7 @@
     </div>
     <div class="row" role="group" aria-label="Effect" id="effects"><span class="lbl">Effect</span></div>
     <p class="err" id="err" role="alert"></p>
-    <div class="row" style="justify-content:flex-end">
+    <div class="foot">
       <button class="btn danger" id="remove" type="button" hidden>Remove</button>
       <button class="btn primary" id="save" type="button">Add</button>
     </div>
@@ -237,6 +281,8 @@ const MAX_SECONDS = 600, MAX_SIDE = 1280;
 const EFFECTS = { none: "None", hearts: "Hearts", bubbles: "Bubbles", sparkles: "Sparkles", confetti: "Confetti" };
 const fmt = s => { s = Math.max(0, s || 0); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`; };
 const fmtAt = s => s < 60 ? `${s.toFixed(1)}s` : fmt(s);
+const short = t => (t || "meme").length > 18 ? `${(t || "meme").slice(0, 17)}…` : (t || "meme");
+let pending = null;          // a meme picked in the library ("Put in my video"), waiting for a spot
 
 // ---- state: your video + the memes on it. Memes sit at a point of YOUR video (`at`),
 //      play from `in` to `out` of the clip, cropped, with an effect drawn over them.
@@ -398,17 +444,21 @@ function renderTimeline() {
     track.append(d);
   }
   track.setAttribute("aria-valuemax", total.toFixed(1));
-  $("end-tick").textContent = fmt(total);
+  const step = [1, 2, 5, 10, 15, 30, 60, 120, 300].find(x => total / x <= 7) || 600, ticks = $("ticks");
+  ticks.replaceChildren();
+  for (let t = 0; t <= total - step * .4; t += step) {
+    const sp = document.createElement("span"); sp.style.left = `${t / total * 100}%`; sp.textContent = fmt(t); ticks.append(sp);
+  }
   $("export").disabled = !inserts.length;
   $("hint").textContent = inserts.length
     ? `${inserts.length} meme${inserts.length > 1 ? "s" : ""} added. Drag a yellow chip under the timeline to move it, click it to change it. Export joins everything.`
-    : "Drag the timeline to the moment you want, then tap “Add meme”.";
+    : pending ? `Drag the timeline to the moment, then tap “Add”.` : "Drag the timeline to the moment you want, then tap “Add meme”.";
 }
 function drawHead() {
   const pct = total ? cur / total * 100 : 0;
   $("head").style.left = `${pct}%`;
   $("find").style.left = `clamp(70px, ${pct}%, calc(100% - 70px))`;
-  $("find-label").textContent = `Add meme at ${fmtAt(cur)}`;
+  $("find-label").textContent = pending ? `Add “${short(pending.title)}” at ${fmtAt(cur)}` : `Add meme at ${fmtAt(cur)}`;
   track.setAttribute("aria-valuenow", cur.toFixed(1)); track.setAttribute("aria-valuetext", fmt(cur));
   $("time").textContent = `${fmt(cur)} / ${fmt(total)}`;
 }
@@ -453,8 +503,23 @@ track.addEventListener("keydown", e => {
 function setPlayIcon() {
   $("play-icon").setAttribute("d", playing ? "M7 5h3v14H7zM14 5h3v14h-3z" : "M8 5v14l11-7z");
   $("play").setAttribute("aria-label", playing ? "Pause" : "Play");
+  $("player").classList.toggle("playing", playing);
 }
-$("play").addEventListener("click", () => playing ? pause() : play());
+const togglePlay = () => playing ? pause() : play();
+$("play").addEventListener("click", togglePlay);
+$("bigplay").addEventListener("click", togglePlay);
+screen.addEventListener("click", togglePlay);
+// desktop shortcuts (not while typing or while the meme dialog is open)
+addEventListener("keydown", e => {
+  if (!mainDur || dlg.open || e.target.closest("input, textarea, [contenteditable]")) return;
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") { e.preventDefault(); $("undo").click(); return; }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === " " && !e.target.closest("button, a")) { e.preventDefault(); togglePlay(); }
+  else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+    if (e.target === track) return;            // the timeline handles its own arrows
+    e.preventDefault(); pause(); seek(cur + (e.key === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? 5 : 1));
+  } else if (e.key.toLowerCase() === "a" || e.key === "/") { e.preventDefault(); $("find").click(); }
+});
 
 // ---- open a video (never uploaded) -------------------------------------------------------------
 function busy(text, sub = "") { $("busy").classList.toggle("on", !!text); $("busy-text").textContent = text; $("busy-sub").textContent = sub; }
@@ -481,7 +546,7 @@ async function openVideo(file) {
     $("player").style.setProperty("--ar", `${W} / ${H}`);
     hookAudio(main);
     stripUrl = await filmstrip(fileUrl, mainDur);
-    $("restart").hidden = false;
+    $("restart").hidden = false; document.body.classList.add("open");
     build(); renderTimeline(); seek(0);
   } catch (err) {
     alert(err.message || "Couldn't open that video in this browser. Try an mp4.");
@@ -495,6 +560,16 @@ const drop = $("drop");
 drop.addEventListener("drop", e => openVideo(e.dataTransfer.files[0]));
 $("restart").addEventListener("click", () => { if (!inserts.length || confirm("Start over with a new video? This edit will be lost.")) location.reload(); });
 addEventListener("beforeunload", e => { if (inserts.length) e.preventDefault(); });
+// /edit?clip=<id>: came from the library with a meme in hand
+const params = new URLSearchParams(location.search), wanted = params.get("clip");
+if (wanted) fetch(`/clips/${encodeURIComponent(wanted)}`).then(r => r.ok ? r.json() : null).then(c => {
+  if (!c) return;
+  pending = { id: c.id, url: c.url, thumb: c.thumb, title: (c.folk_names || [])[0] || c.title || params.get("name") || c.caption || "" };
+  $("picked-title").textContent = pending.title || "meme";
+  if (c.thumb) $("picked-img").src = c.thumb;
+  $("picked").hidden = false;
+  if (mainDur) { drawHead(); renderTimeline(); }
+}).catch(() => {});
 
 // ---- search ------------------------------------------------------------------------------------
 const dlg = $("dlg");
@@ -507,6 +582,7 @@ async function api(url) {
 }
 function step(name) { $("step-search").hidden = name !== "search"; $("step-edit").hidden = name !== "edit"; if (name !== "edit") mv.pause(); }
 $("find").addEventListener("click", () => {
+  if (pending) { pause(); dlg.showModal(); startDraft(pending); return; }
   pause(); editing = null; step("search"); dlg.showModal(); $("mq").focus();
   if (!$("results").children.length) search("");
 });
@@ -522,8 +598,9 @@ async function search(q) {
   for (const c of data.results) {
     const b = document.createElement("button");
     b.type = "button"; b.className = "pick";
-    b.innerHTML = `<video muted loop playsinline preload="none"></video><span></span>`;
+    b.innerHTML = `<video muted loop playsinline preload="none"></video><span></span>${c.duration ? "<em></em>" : ""}`;
     const v = b.querySelector("video"); v.src = c.url; if (c.thumb) v.poster = c.thumb;
+    if (c.duration) b.querySelector("em").textContent = `${(+c.duration).toFixed(1)}s`;
     b.querySelector("span").textContent = c.title || c.caption || "Untitled";
     b.addEventListener("pointerenter", () => v.play().catch(() => {}));
     b.addEventListener("pointerleave", () => v.pause());
@@ -570,7 +647,7 @@ function showEdit(fresh) {
   }, { once: true });
   step("edit");
 }
-$("back").addEventListener("click", () => step("search"));
+$("back").addEventListener("click", () => { step("search"); if (!$("results").children.length) search(""); });
 $("close-edit").addEventListener("click", () => dlg.close());
 // the preview loops the trimmed part and draws the effect over it
 (function preview() {
@@ -626,7 +703,11 @@ $("save").addEventListener("click", () => {
   snapshot();
   if (editing) Object.assign(editing, { in: draft.in, out: draft.out, crop: draft.crop, effect: draft.effect });
   else inserts.push({ ...draft, id: nextId, n: nextId++, at: mainTimeAt(cur) });
+  const ins = editing || inserts[inserts.length - 1];
+  if (!editing && pending) { pending = null; $("picked").hidden = true; }
   dlg.close(); changed();
+  // play from just before it, so the cut can be seen
+  const g = segs.find(x => x.ins === ins); if (g) { seek(Math.max(0, g.c0 - 1.5)); play(); }
 });
 $("remove").addEventListener("click", () => {
   snapshot(); inserts = inserts.filter(i => i !== editing); dlg.close(); changed();
@@ -656,17 +737,25 @@ $("export").addEventListener("click", async () => {
   rec.ondataavailable = e => e.data.size && chunks.push(e.data);
   const done = new Promise(ok => { rec.onstop = ok; });
   speaker.gain.value = 0;                       // record without playing it out loud
-  const progress = setInterval(() => busy(`Exporting… ${Math.round(cur / total * 100)}%`, "Keep this tab open and in front"), 250);
+  $("done").hidden = true; $("spin").hidden = true; $("meter").hidden = false;
+  const progress = setInterval(() => {
+    busy(`Exporting… ${Math.round(cur / total * 100)}%`, "Keep this tab open and in front");
+    $("meter-fill").style.width = `${cur / total * 100}%`;
+  }, 250);
   rec.start(500);
   onEnd = () => rec.stop();
   play();
   await done;
-  clearInterval(progress); onEnd = null; speaker.gain.value = 1; busy("");
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob(chunks, { type }));
-  a.download = `memeclip-edit.${type.includes("mp4") ? "mp4" : "webm"}`;
-  a.click();
-  $("hint").textContent = `Exported ${a.download}. Check your downloads.`;
+  clearInterval(progress); onEnd = null; speaker.gain.value = 1; busy(""); $("spin").hidden = false; $("meter").hidden = true;
+  const name = `memeclip-edit.${type.includes("mp4") ? "mp4" : "webm"}`, blob = new Blob(chunks, { type: type.split(";")[0] });
+  const file = new File([blob], name, { type: blob.type }), dl = $("save-file");
+  if (dl.href) URL.revokeObjectURL(dl.href);
+  dl.href = URL.createObjectURL(blob); dl.download = name;
+  $("done-text").textContent = `Your video is ready · ${fmt(total)} · ${(blob.size / 1e6).toFixed(1)} MB`;
+  $("share").hidden = !(navigator.canShare && navigator.canShare({ files: [file] }));
+  $("share").onclick = () => navigator.share({ files: [file], title: "memeclip" }).catch(() => {});
+  $("done").hidden = false;
+  if ($("share").hidden) dl.click();          // no share sheet (desktop): download straight away
 });
 </script>
 </body>
