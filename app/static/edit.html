@@ -11,11 +11,12 @@
 <link rel="stylesheet" href="/static/themes/__THEME__.css?v=__VERSION__">
 <style>
   [hidden] { display: none !important; }
-  /* the editor: one column, the video on top, the timeline under it */
+  /* Everything happens in this page: your video never leaves the browser, memes come from
+     /media, and Export records the result here. The server only serves this file. */
   .ed { max-width: 1040px; margin: 0 auto; padding: 28px 16px 96px; display: grid; gap: 18px; }
   .ed h1 { font-family: var(--display, inherit); font-size: clamp(30px, 5vw, 52px); line-height: .95; letter-spacing: -.035em;
            margin: 0; font-weight: 800; text-wrap: balance; }
-  .ed .intro { color: var(--text-2); margin: 0; max-width: 60ch; }
+  .ed .intro { color: var(--text-2); margin: 0; max-width: 62ch; }
 
   .drop { display: grid; place-items: center; gap: 14px; text-align: center; min-height: 340px; padding: 32px;
           border: 1.5px dashed var(--hair-strong); border-radius: 28px; background: var(--tray); cursor: pointer;
@@ -26,36 +27,41 @@
   .drop svg.i { width: 34px; height: 34px; color: var(--subtitle); }
 
   .player { position: relative; border-radius: 22px; overflow: hidden; background: #000; border: 1px solid var(--hair);
-            aspect-ratio: var(--ar, 16 / 9); max-height: 62vh; justify-self: center; width: 100%; }
-  .player video { width: 100%; height: 100%; display: block; object-fit: contain; }
-  .busy { position: absolute; inset: 0; display: none; place-items: center; align-content: center; gap: 12px;
-          background: rgba(5, 5, 5, .72); backdrop-filter: blur(6px); font-weight: 500; }
+            aspect-ratio: var(--ar, 16 / 9); max-height: 62vh; justify-self: center; max-width: 100%; }
+  .player canvas { width: 100%; height: 100%; display: block; }
+  .busy { position: absolute; inset: 0; display: none; place-items: center; align-content: center; gap: 12px; padding: 20px;
+          background: rgba(5, 5, 5, .74); backdrop-filter: blur(6px); font-weight: 500; text-align: center; }
   .busy.on { display: grid; }
   .spin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--hair-strong); border-top-color: var(--subtitle);
           animation: spin .8s linear infinite; }
+  .busy small { color: var(--text-3); font-weight: 400; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   .bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .bar .time { font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 14px; margin-right: auto; }
   .btn { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--hair-strong);
-         background: var(--core); display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; }
+         background: var(--core); display: inline-flex; align-items: center; gap: 8px; color: inherit; }
   .btn:hover { border-color: var(--text-3); }
   .btn[disabled] { opacity: .4; pointer-events: none; }
   .btn.primary { background: var(--cream); color: #111; border-color: transparent; font-weight: 600; }
+  .btn.danger { color: var(--danger); }
   .btn.round { width: 44px; padding: 0; justify-content: center; }
 
-  /* timeline: filmstrip, inserted memes, the insert marker and the playhead */
-  .tl { position: relative; height: 72px; border-radius: 14px; background: var(--core) center / 100% 100% no-repeat;
-        border: 1px solid var(--hair); cursor: ew-resize; touch-action: none; user-select: none; margin-top: 46px; }
-  .tl::after { content: ""; position: absolute; inset: 0; border-radius: inherit;
-               background: linear-gradient(transparent 55%, rgba(0, 0, 0, .55)); pointer-events: none; }
-  .seg { position: absolute; top: -1px; bottom: -1px; border-radius: 8px; background: rgba(255, 213, 74, .28);
-         border: 2px solid var(--subtitle); box-shadow: 0 0 0 1px rgba(0, 0, 0, .5); pointer-events: none; z-index: 1; }
-  .seg span { position: absolute; left: 6px; bottom: 4px; right: 4px; font-size: 11px; font-weight: 600; color: #111;
-              background: var(--subtitle); border-radius: 6px; padding: 1px 6px; white-space: nowrap; overflow: hidden;
-              text-overflow: ellipsis; max-width: max-content; }
-  .cut { position: absolute; top: 6px; bottom: 6px; width: 0; border-left: 2px dashed var(--subtitle); z-index: 2;
-         pointer-events: none; opacity: .9; }
+  /* timeline: your video's filmstrip, cut where memes go in; memes are yellow blocks you can drag */
+  .tl { position: relative; margin-top: 46px; touch-action: none; user-select: none; }
+  .track { display: flex; height: 72px; border-radius: 14px; overflow: hidden; border: 1px solid var(--hair);
+           background: var(--core); cursor: ew-resize; }
+  .seg { height: 100%; flex: none; background-repeat: no-repeat; position: relative; }
+  .seg.main::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 55%, rgba(0, 0, 0, .5)); }
+  .seg.meme { background: #2a2410 left / auto 100% repeat-x; outline: 2px solid var(--subtitle); outline-offset: -2px;
+              border-radius: 8px; cursor: grab; z-index: 1; box-shadow: 0 0 0 1px rgba(0, 0, 0, .6); }
+  .seg.meme:hover { filter: brightness(1.15); }
+  .seg.meme.moving { cursor: grabbing; opacity: .85; outline-style: dashed; }
+  .seg.meme span { position: absolute; left: 6px; bottom: 5px; max-width: calc(100% - 12px); font-size: 11px; font-weight: 600;
+                   color: #111; background: var(--subtitle); border-radius: 6px; padding: 1px 6px; white-space: nowrap;
+                   overflow: hidden; text-overflow: ellipsis; }
+  .seg.meme b { position: absolute; top: 4px; right: 5px; font-size: 11px; color: #111; background: var(--subtitle);
+                border-radius: 999px; padding: 0 5px; font-weight: 600; }
   .head { position: absolute; top: -10px; bottom: -10px; width: 2px; margin-left: -1px; background: var(--cream);
           z-index: 3; pointer-events: none; box-shadow: 0 0 12px rgba(244, 237, 228, .5); }
   .head::before { content: ""; position: absolute; top: -2px; left: 50%; width: 14px; height: 14px; margin-left: -7px;
@@ -70,16 +76,16 @@
            font-variant-numeric: tabular-nums; padding: 0 2px; }
   .hint { color: var(--text-3); font-size: 13px; margin: 0; }
 
-  /* dialog: search, then crop + look */
+  /* dialog: search, then trim + crop + effect */
   dialog { width: min(760px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); border: 1px solid var(--hair-strong);
            border-radius: 26px; background: #0d0d10; color: inherit; padding: 0; }
   dialog::backdrop { background: rgba(0, 0, 0, .7); backdrop-filter: blur(8px); }
-  .dlg { padding: 20px; display: grid; gap: 16px; }
+  .dlg { padding: 20px; display: grid; gap: 14px; }
   .dlg header { display: flex; align-items: center; gap: 10px; }
   .dlg header h2 { margin: 0 auto 0 0; font-family: var(--display, inherit); font-size: 22px; letter-spacing: -.02em; }
   .q { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 16px; border-radius: 999px;
        background: var(--cream); color: #111; }
-  .q input { flex: 1; border: 0; outline: none; background: none; color: #111; font-size: 16px; min-width: 0; }
+  .q input { flex: 1; border: 0; outline: none; background: none; color: #111; font-size: 16px; min-width: 0; padding: 0; }
   .q svg.i { color: #111; }
   .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
   .pick { display: grid; gap: 6px; padding: 0; border: 2px solid transparent; border-radius: 16px; background: none; text-align: left; }
@@ -89,16 +95,31 @@
   .pick:hover, .pick:focus-visible { border-color: var(--subtitle); }
   .empty { color: var(--text-3); margin: 0; }
 
-  .cropbox { position: relative; justify-self: center; max-width: 100%; max-height: 46vh; aspect-ratio: var(--mar, 1);
+  .cropbox { position: relative; justify-self: center; max-width: 100%; max-height: 40vh; aspect-ratio: var(--mar, 1);
              border-radius: 14px; overflow: hidden; background: #000; touch-action: none; }
-  .cropbox video { width: 100%; height: 100%; display: block; }
+  .cropbox video, .cropbox canvas { width: 100%; height: 100%; display: block; }
+  .cropbox canvas { position: absolute; inset: 0; pointer-events: none; }
   .sel { position: absolute; border: 2px solid var(--subtitle); box-shadow: 0 0 0 9999px rgba(0, 0, 0, .6); cursor: move;
          background-image: linear-gradient(rgba(255,255,255,.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.18) 1px, transparent 1px);
-         background-size: 33.33% 33.33%; background-position: -1px -1px; }
-  .sel i { position: absolute; right: -9px; bottom: -9px; width: 18px; height: 18px; border-radius: 50%;
-           background: var(--subtitle); border: 3px solid #0d0d10; cursor: nwse-resize; }
+         background-size: 33.33% 33.33%; background-position: -1px -1px; z-index: 1; }
+  .sel i { position: absolute; right: -1px; bottom: -1px; width: 20px; height: 20px; border-radius: 6px 0 12px 0;
+           background: var(--subtitle); cursor: nwse-resize; }
+
+  /* trim: two handles on one track */
+  .trim { position: relative; height: 34px; }
+  .trim .rail, .trim .fill { position: absolute; top: 13px; height: 8px; border-radius: 99px; }
+  .trim .rail { left: 0; right: 0; background: var(--hair-strong); }
+  .trim .fill { background: var(--subtitle); }
+  .trim input { position: absolute; inset: 0; width: 100%; margin: 0; background: none; pointer-events: none;
+                -webkit-appearance: none; appearance: none; }
+  .trim input::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 22px; height: 30px; border-radius: 8px;
+                                      background: var(--cream); border: 3px solid #0d0d10; cursor: ew-resize; }
+  .trim input::-moz-range-thumb { pointer-events: auto; width: 18px; height: 26px; border-radius: 8px; background: var(--cream);
+                                  border: 3px solid #0d0d10; cursor: ew-resize; }
+  .trim input::-moz-range-track { background: none; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .row .lbl { color: var(--text-3); font-size: 13px; min-width: 52px; }
+  .row .val { font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 13px; }
   .chip { min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--hair-strong); background: none; font-size: 14px; }
   .chip[aria-pressed="true"] { background: var(--subtitle); color: #111; border-color: transparent; font-weight: 600; }
   .err { color: var(--danger); margin: 0; min-height: 1.2em; font-size: 14px; }
@@ -118,28 +139,29 @@
 <main class="ed">
   <div>
     <h1>Drop a meme into your video</h1>
-    <p class="intro">Drag along the timeline to the moment, tap the search, pick a clip, crop it, give it a look. It goes in right there.</p>
+    <p class="intro">Drag along the timeline to the moment, tap the search, pick a clip, trim and crop it, add an effect.
+      Drag a meme on the timeline to move it. Nothing is joined until you export, and your video never leaves this browser.</p>
   </div>
 
   <label class="drop" id="drop">
     <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></svg>
     <strong>Choose a video or drop it here</strong>
-    <span>mp4, mov, webm · up to 10 minutes, 95 MB</span>
+    <span>Stays on your device · up to 10 minutes</span>
     <input id="file" type="file" accept="video/*" class="sr">
   </label>
 
   <section id="editor" hidden>
     <div class="player" id="player">
-      <video id="video" playsinline preload="auto"></video>
-      <div class="busy" id="busy" role="status" aria-live="polite"><div class="spin"></div><span id="busy-text">Working…</span></div>
+      <canvas id="screen"></canvas>
+      <div class="busy" id="busy" role="status" aria-live="polite"><div class="spin"></div><span id="busy-text"></span><small id="busy-sub"></small></div>
     </div>
 
-    <div class="tl" id="tl" role="slider" tabindex="0" aria-label="Timeline" aria-valuemin="0">
+    <div class="tl" id="tl">
       <button class="find" id="find" type="button">
         <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <span id="find-label">Add meme</span>
       </button>
-      <div class="cut" id="cut"></div>
+      <div class="track" id="track" role="slider" tabindex="0" aria-label="Timeline" aria-valuemin="0"></div>
       <div class="head" id="head"></div>
     </div>
     <div class="ticks"><span>0:00</span><span id="end-tick"></span></div>
@@ -152,9 +174,9 @@
       <button class="btn" id="undo" type="button" disabled>
         <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>Undo
       </button>
-      <a class="btn primary" id="download" download="memeclip-edit.mp4">
-        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12"/><path d="m6 10 6 6 6-6"/><path d="M4 20h16"/></svg>Download
-      </a>
+      <button class="btn primary" id="export" type="button" disabled>
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12"/><path d="m6 10 6 6 6-6"/><path d="M4 20h16"/></svg>Export
+      </button>
     </div>
     <p class="hint" id="hint" role="status" aria-live="polite"></p>
   </section>
@@ -178,11 +200,18 @@
   <div class="dlg" id="step-edit" hidden>
     <header>
       <button class="btn round" id="back" type="button" aria-label="Back to results"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
-      <h2>Crop &amp; look</h2>
+      <h2 id="edit-title">Trim, crop &amp; effect</h2>
+      <button class="btn round" id="close-edit" type="button" aria-label="Close"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </header>
     <div class="cropbox" id="cropbox">
-      <video id="mvideo" muted loop playsinline autoplay></video>
+      <video id="mvideo" loop playsinline></video>
+      <canvas id="fx"></canvas>
       <div class="sel" id="sel"><i id="grip"></i></div>
+    </div>
+    <div class="row"><span class="lbl">Trim</span><span class="val" id="trim-val"></span></div>
+    <div class="trim"><div class="rail"></div><div class="fill" id="trim-fill"></div>
+      <input id="tin" type="range" min="0" step="0.05" aria-label="Clip starts at">
+      <input id="tout" type="range" min="0" step="0.05" aria-label="Clip ends at">
     </div>
     <div class="row" role="group" aria-label="Crop shape">
       <span class="lbl">Crop</span>
@@ -191,124 +220,288 @@
       <button class="chip" type="button" data-ar="1" aria-pressed="false">Square</button>
       <button class="chip" type="button" data-ar="reset" aria-pressed="false">Whole clip</button>
     </div>
-    <div class="row" role="group" aria-label="Look" id="looks"><span class="lbl">Look</span></div>
+    <div class="row" role="group" aria-label="Effect" id="effects"><span class="lbl">Effect</span></div>
     <p class="err" id="err" role="alert"></p>
     <div class="row" style="justify-content:flex-end">
-      <button class="btn primary" id="insert" type="button">Insert</button>
+      <button class="btn danger" id="remove" type="button" hidden>Remove</button>
+      <button class="btn primary" id="save" type="button">Add</button>
     </div>
   </div>
 </dialog>
 
 <script>
 const $ = id => document.getElementById(id);
-const LOOKS = { none: "none", mono: "grayscale(1)", sepia: "sepia(1)", vivid: "saturate(1.6) contrast(1.1)",
-                noir: "grayscale(1) contrast(1.5)", fried: "saturate(3) contrast(1.8)" };
-const NAMES = { none: "Original", mono: "Mono", sepia: "Sepia", vivid: "Vivid", noir: "Noir", fried: "Deep fried" };
-const video = $("video"), tl = $("tl");
-let edit = null, at = 0, clip = null, look = "none", crop = { x: 0, y: 0, w: 1, h: 1 }, ratio = null;
-
+const MAX_SECONDS = 600, MAX_SIDE = 1280;
+const EFFECTS = { none: "None", hearts: "Hearts", bubbles: "Bubbles", sparkles: "Sparkles", confetti: "Confetti" };
 const fmt = s => { s = Math.max(0, s || 0); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`; };
 const fmtAt = s => s < 60 ? `${s.toFixed(1)}s` : fmt(s);
-async function api(url, opts) {
-  const r = await fetch(url, opts);
-  if (r.status === 401) { location.href = "/login"; throw new Error("sign in"); }
-  const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(body.detail || `Something went wrong (${r.status})`);
-  return body;
-}
-function busy(text) { $("busy").classList.toggle("on", !!text); $("busy-text").textContent = text || ""; }
-const snap = t => Math.max(0, ...edit.keyframes.filter(k => k <= t + 1e-3));
 
-// ---- load / upload -------------------------------------------------------
-function show(e, seek) {
-  edit = e;
-  history.replaceState(null, "", `#${e.id}`);
-  $("drop").hidden = true; $("editor").hidden = false; $("restart").hidden = false;
-  $("player").style.setProperty("--ar", `${e.width} / ${e.height}`);
-  video.src = e.url;
-  video.addEventListener("loadedmetadata", () => { video.currentTime = seek ?? 0; }, { once: true });
-  tl.style.backgroundImage = `url("${e.strip}")`;
-  tl.setAttribute("aria-valuemax", e.duration.toFixed(1));
-  $("end-tick").textContent = fmt(e.duration);
-  $("download").href = e.url;
-  $("undo").disabled = !e.can_undo;
-  tl.querySelectorAll(".seg").forEach(n => n.remove());
-  for (const s of e.inserts) {
-    const seg = document.createElement("div");
-    seg.className = "seg";
-    seg.style.left = `${s.at / e.duration * 100}%`;
-    seg.style.width = `${Math.max(.6, s.duration / e.duration * 100)}%`;
-    seg.innerHTML = `<span></span>`;
-    seg.firstChild.textContent = s.title || "meme";
-    tl.append(seg);
+// ---- state: your video + the memes on it. Memes sit at a point of YOUR video (`at`),
+//      play from `in` to `out` of the clip, cropped, with an effect drawn over them.
+const main = document.createElement("video");
+main.playsInline = true; main.preload = "auto";
+const screen = $("screen"), ctx = screen.getContext("2d");
+let mainDur = 0, W = 0, H = 0, fileUrl = null, stripUrl = "";
+let inserts = [], nextId = 1, undoStack = [];
+const memeEls = {};          // insert id -> its own <video>
+
+function memeEl(ins) {
+  let v = memeEls[ins.id];
+  if (!v) {
+    v = memeEls[ins.id] = document.createElement("video");
+    v.src = ins.clip.url; v.preload = "auto"; v.playsInline = true;
+    v.addEventListener("seeked", () => { if (!playing) draw(); });
+    hookAudio(v);
   }
-  setAt(seek ?? 0);
-  $("hint").textContent = e.inserts.length
-    ? `${e.inserts.length} meme${e.inserts.length > 1 ? "s" : ""} added. Keep going, or download.`
+  return v;
+}
+function snapshot() { undoStack.push(JSON.stringify(inserts)); $("undo").disabled = false; }
+$("undo").addEventListener("click", () => {
+  if (!undoStack.length) return;
+  inserts = JSON.parse(undoStack.pop()); $("undo").disabled = !undoStack.length; changed();
+});
+
+// ---- the composition: your video cut into pieces, memes played between them ---------------
+let segs = [], total = 0, si = 0, cur = 0, playing = false;
+const sorted = (skip) => inserts.filter(i => i.id !== skip).sort((a, b) => a.at - b.at || a.n - b.n);
+function build() {
+  segs = []; let c = 0, prev = 0;
+  const push = (kind, el, s, e, ins) => { if (e - s < 0.02) return; segs.push({ kind, el, s, e, c0: c, c1: c + e - s, ins }); c += e - s; };
+  for (const i of sorted()) { push("main", main, prev, i.at); push("meme", memeEl(i), i.in, i.out, i); prev = i.at; }
+  push("main", main, prev, mainDur);
+  total = c;
+}
+// where on YOUR video a point of the composition falls (inside a meme: that meme's spot)
+function mainTimeAt(c, skip) {
+  let cc = 0, prev = 0;
+  for (const i of sorted(skip)) {
+    const len = i.at - prev; if (c < cc + len) return prev + (c - cc); cc += len;
+    if (c < cc + i.out - i.in) return i.at; cc += i.out - i.in; prev = i.at;
+  }
+  return Math.min(mainDur, prev + (c - cc));
+}
+const segIndex = c => Math.max(0, segs.findLastIndex(g => g.c0 <= c + 1e-6));
+function pauseAll() { main.pause(); Object.values(memeEls).forEach(v => v.pause()); }
+function seek(c) {
+  cur = Math.min(Math.max(0, c), total); si = segIndex(cur);
+  const g = segs[si]; if (!g) return;
+  pauseAll();
+  g.el.currentTime = g.s + Math.min(cur - g.c0, g.e - g.s - 0.01);
+  if (playing) g.el.play().catch(() => {});
+  drawHead();
+}
+function play() {
+  if (cur >= total - 0.05) cur = 0;
+  playing = true; seek(cur); setPlayIcon();
+}
+function pause() { playing = false; pauseAll(); setPlayIcon(); }
+let onEnd = null;
+function tick() {
+  requestAnimationFrame(tick);
+  if (playing && segs[si]) {
+    const g = segs[si], t = g.el.currentTime;
+    if (t >= g.e - 0.015 || g.el.ended) {
+      g.el.pause();
+      if (++si >= segs.length) { playing = false; cur = total; si = segs.length - 1; setPlayIcon(); onEnd?.(); }
+      else { const n = segs[si]; n.el.currentTime = n.s; n.el.play().catch(() => {}); cur = n.c0; }
+    } else cur = g.c0 + (t - g.s);
+    draw(); drawHead();
+  }
+}
+requestAnimationFrame(tick);
+main.addEventListener("seeked", () => { if (!playing) draw(); });
+
+// ---- drawing: your video, or a meme (cropped, letterboxed, effect on top) ----------------------
+function draw() {
+  const g = segs[si]; if (!g || g.el.readyState < 2) return;
+  if (g.kind === "main") { ctx.drawImage(main, 0, 0, W, H); return; }
+  drawMeme(ctx, g.el, g.ins, W, H, g.el.currentTime - g.ins.in);
+}
+function drawMeme(c, v, ins, w, h, t) {
+  const { x, y, w: cw, h: ch } = ins.crop, vw = v.videoWidth, vh = v.videoHeight;
+  const sw = vw * cw, sh = vh * ch, k = Math.min(w / sw, h / sh), dw = sw * k, dh = sh * k;
+  c.fillStyle = "#000"; c.fillRect(0, 0, w, h);
+  c.drawImage(v, vw * x, vh * y, sw, sh, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  drawEffect(c, ins.effect, t, w, h, ins.id * 7919);
+}
+// effects: particles whose place depends only on time, so preview and export match frame for frame
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function heart(c, x, y, s) {
+  c.beginPath(); c.moveTo(x, y + s * .3);
+  c.bezierCurveTo(x, y, x - s * .5, y, x - s * .5, y + s * .3);
+  c.bezierCurveTo(x - s * .5, y + s * .6, x, y + s * .78, x, y + s);
+  c.bezierCurveTo(x, y + s * .78, x + s * .5, y + s * .6, x + s * .5, y + s * .3);
+  c.bezierCurveTo(x + s * .5, y, x, y, x, y + s * .3); c.fill();
+}
+function star(c, x, y, r) {
+  c.beginPath();
+  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, rr = i % 2 ? r * .28 : r; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+  c.closePath(); c.fill();
+}
+const CONFETTI = ["#ffd54a", "#ff5fa2", "#6ec8ff", "#7cf06a", "#ff8a1f", "#b69cff"];
+function drawEffect(c, kind, t, w, h, seed) {
+  if (!kind || kind === "none") return;
+  const r = rng(seed), m = Math.min(w, h), n = kind === "confetti" ? 46 : kind === "sparkles" ? 22 : 18;
+  c.save();
+  for (let i = 0; i < n; i++) {
+    const x0 = r() * w, sp = (.12 + r() * .22) * h, s = (.05 + r() * .06) * m, ph = r(), wob = r() * 6.28, span = h + 2 * s;
+    if (kind === "hearts" || kind === "bubbles") {
+      const y = h + s - ((t * sp + ph * span) % span), x = x0 + Math.sin(t * 1.6 + wob) * s * .8;
+      c.globalAlpha = Math.min(1, Math.max(0, y / (h * .35)));
+      if (kind === "hearts") { c.fillStyle = i % 3 ? "#ff3d7f" : "#ff8fb8"; heart(c, x, y - s, s); }
+      else {
+        c.beginPath(); c.arc(x, y, s * .55, 0, 6.28);
+        c.fillStyle = "rgba(170, 220, 255, .14)"; c.fill();
+        c.lineWidth = Math.max(1.5, s * .06); c.strokeStyle = "rgba(255, 255, 255, .8)"; c.stroke();
+        c.beginPath(); c.arc(x - s * .18, y - s * .18, s * .14, 0, 6.28); c.fillStyle = "rgba(255, 255, 255, .85)"; c.fill();
+      }
+    } else if (kind === "sparkles") {
+      const tw = Math.max(0, Math.sin(t * (2 + ph * 3) + wob));
+      c.globalAlpha = tw; c.fillStyle = i % 4 ? "#fff6c2" : "#ffd54a"; star(c, x0, r() * h, s * .6 * (.4 + tw));
+    } else {
+      const y = ((t * sp * 1.3 + ph * span) % span) - s, x = x0 + Math.sin(t * 2 + wob) * s;
+      c.globalAlpha = .95; c.fillStyle = CONFETTI[i % CONFETTI.length];
+      c.translate(x, y); c.rotate(t * 4 + wob); c.fillRect(-s * .25, -s * .12, s * .5, s * .24); c.setTransform(1, 0, 0, 1, 0, 0);
+    }
+  }
+  c.restore();
+}
+
+// ---- timeline ----------------------------------------------------------------------------------
+const track = $("track");
+function renderTimeline() {
+  track.replaceChildren();
+  for (const g of segs) {
+    const d = document.createElement("div");
+    d.className = `seg ${g.kind}`; d.style.width = `${(g.c1 - g.c0) / total * 100}%`;
+    if (g.kind === "main") {
+      // this piece of your filmstrip: the strip is sized to your whole video, shifted to the piece
+      const len = g.e - g.s;
+      d.style.backgroundImage = `url("${stripUrl}")`;
+      d.style.backgroundSize = `${mainDur / len * 100}% 100%`;
+      d.style.backgroundPosition = mainDur - len > .01 ? `${g.s / (mainDur - len) * 100}% 0` : "0 0";
+    } else {
+      if (g.ins.clip.thumb) d.style.backgroundImage = `url("${g.ins.clip.thumb}")`;
+      d.dataset.id = g.ins.id;
+      d.innerHTML = `<span></span>${g.ins.effect !== "none" ? "<b></b>" : ""}`;
+      d.querySelector("span").textContent = g.ins.clip.title || "meme";
+      if (g.ins.effect !== "none") d.querySelector("b").textContent = EFFECTS[g.ins.effect];
+      d.title = "Drag to move · click to edit";
+    }
+    track.append(d);
+  }
+  track.setAttribute("aria-valuemax", total.toFixed(1));
+  $("end-tick").textContent = fmt(total);
+  $("export").disabled = !inserts.length;
+  $("hint").textContent = inserts.length
+    ? `${inserts.length} meme${inserts.length > 1 ? "s" : ""} added. Drag one to move it, click it to change it. Export joins everything.`
     : "Drag the timeline to the moment you want, then tap “Add meme”.";
 }
-
-async function upload(file) {
-  if (!file) return;
-  $("drop").hidden = true; $("editor").hidden = false; busy("Preparing your video… this happens once");
-  const form = new FormData(); form.append("file", file);
-  try { show(await api("/edits", { method: "POST", body: form })); }
-  catch (err) { $("drop").hidden = false; $("editor").hidden = true; alert(err.message); }
-  finally { busy(""); }
+function drawHead() {
+  const pct = total ? cur / total * 100 : 0;
+  $("head").style.left = `${pct}%`;
+  $("find").style.left = `clamp(70px, ${pct}%, calc(100% - 70px))`;
+  $("find-label").textContent = `Add meme at ${fmtAt(cur)}`;
+  track.setAttribute("aria-valuenow", cur.toFixed(1)); track.setAttribute("aria-valuetext", fmt(cur));
+  $("time").textContent = `${fmt(cur)} / ${fmt(total)}`;
 }
-$("file").addEventListener("change", e => upload(e.target.files[0]));
+function changed() { const was = playing; pause(); build(); renderTimeline(); seek(Math.min(cur, total)); if (was) play(); }
+const atPointer = e => { const r = track.getBoundingClientRect(); return Math.min(Math.max(0, (e.clientX - r.left) / r.width), 1) * total; };
+
+let drag = null;
+track.addEventListener("pointerdown", e => {
+  const block = e.target.closest(".seg.meme");
+  track.setPointerCapture(e.pointerId);
+  if (block) {
+    const ins = inserts.find(i => i.id === +block.dataset.id);
+    const g = segs.find(s => s.ins === ins);
+    drag = { kind: "move", ins, x: e.clientX, grab: atPointer(e) - g.c0, before: JSON.stringify(inserts), moved: false };
+    return;
+  }
+  drag = { kind: "scrub" }; pause(); seek(atPointer(e)); draw();
+});
+track.addEventListener("pointermove", e => {
+  if (!drag) return;
+  if (drag.kind === "scrub") { seek(atPointer(e)); return; }
+  if (!drag.moved && Math.abs(e.clientX - drag.x) < 5) return;
+  if (!drag.moved) { drag.moved = true; pause(); }
+  drag.ins.at = mainTimeAt(Math.max(0, atPointer(e) - drag.grab), drag.ins.id);
+  build(); renderTimeline();
+  track.querySelector(`[data-id="${drag.ins.id}"]`)?.classList.add("moving");
+  const g = segs.find(s => s.ins === drag.ins); if (g) seek(g.c0);
+});
+track.addEventListener("pointerup", () => {
+  const d = drag; drag = null;
+  if (d?.kind !== "move") return;
+  if (d.moved) { undoStack.push(d.before); $("undo").disabled = false; changed(); }
+  else openEdit(d.ins);
+});
+track.addEventListener("keydown", e => {
+  const step = { ArrowLeft: -1, ArrowRight: 1, PageDown: -5, PageUp: 5 }[e.key];
+  if (step !== undefined) { e.preventDefault(); pause(); seek(cur + step); }
+  if (e.key === " ") { e.preventDefault(); playing ? pause() : play(); }
+});
+function setPlayIcon() {
+  $("play-icon").setAttribute("d", playing ? "M7 5h3v14H7zM14 5h3v14h-3z" : "M8 5v14l11-7z");
+  $("play").setAttribute("aria-label", playing ? "Pause" : "Play");
+}
+$("play").addEventListener("click", () => playing ? pause() : play());
+
+// ---- open a video (never uploaded) -------------------------------------------------------------
+function busy(text, sub = "") { $("busy").classList.toggle("on", !!text); $("busy-text").textContent = text; $("busy-sub").textContent = sub; }
+const once = (el, ev) => new Promise((ok, no) => { el.addEventListener(ev, ok, { once: true }); el.addEventListener("error", no, { once: true }); });
+async function filmstrip(url, dur, n = 16) {
+  const v = document.createElement("video"); v.muted = true; v.src = url; v.preload = "auto";
+  await once(v, "loadeddata");
+  const h = 72, w = Math.round(h * v.videoWidth / v.videoHeight), c = document.createElement("canvas");
+  c.width = w * n; c.height = h;
+  for (let i = 0; i < n; i++) { v.currentTime = dur * (i + .5) / n; await once(v, "seeked"); c.getContext("2d").drawImage(v, i * w, 0, w, h); }
+  return c.toDataURL("image/jpeg", .75);
+}
+async function openVideo(file) {
+  if (!file) return;
+  if (!file.type.startsWith("video/")) return alert("That isn't a video.");
+  $("drop").hidden = true; $("editor").hidden = false; busy("Opening your video…");
+  try {
+    fileUrl = URL.createObjectURL(file); main.src = fileUrl;
+    await once(main, "loadeddata");
+    if (main.duration > MAX_SECONDS) throw new Error("Videos up to 10 minutes.");
+    mainDur = main.duration;
+    const k = Math.min(1, MAX_SIDE / Math.max(main.videoWidth, main.videoHeight));
+    W = screen.width = Math.round(main.videoWidth * k / 2) * 2; H = screen.height = Math.round(main.videoHeight * k / 2) * 2;
+    $("player").style.setProperty("--ar", `${W} / ${H}`);
+    hookAudio(main);
+    stripUrl = await filmstrip(fileUrl, mainDur);
+    $("restart").hidden = false;
+    build(); renderTimeline(); seek(0);
+  } catch (err) {
+    alert(err.message || "Couldn't open that video in this browser. Try an mp4.");
+    $("drop").hidden = false; $("editor").hidden = true;
+  } finally { busy(""); }
+}
+$("file").addEventListener("change", e => openVideo(e.target.files[0]));
 const drop = $("drop");
 ["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
 ["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
-drop.addEventListener("drop", e => upload(e.dataTransfer.files[0]));
-$("restart").addEventListener("click", () => { location.hash = ""; location.reload(); });
+drop.addEventListener("drop", e => openVideo(e.dataTransfer.files[0]));
+$("restart").addEventListener("click", () => { if (!inserts.length || confirm("Start over with a new video? This edit will be lost.")) location.reload(); });
+addEventListener("beforeunload", e => { if (inserts.length) e.preventDefault(); });
 
-// ---- timeline ---------------------------------------------------------------
-function setAt(t) {
-  at = Math.min(Math.max(0, t), edit.duration);
-  const pct = at / edit.duration * 100;
-  $("head").style.left = `${pct}%`;
-  $("find").style.left = `clamp(70px, ${pct}%, calc(100% - 70px))`;
-  const cut = snap(at);
-  $("cut").style.left = `${cut / edit.duration * 100}%`;
-  $("find-label").textContent = `Add meme at ${fmtAt(cut)}`;
-  tl.setAttribute("aria-valuenow", at.toFixed(1));
-  tl.setAttribute("aria-valuetext", fmt(at));
-  $("time").textContent = `${fmt(at)} / ${fmt(edit.duration)}`;
-}
-function fromPointer(e) {
-  const r = tl.getBoundingClientRect();
-  return (e.clientX - r.left) / r.width * edit.duration;
-}
-let dragging = false;
-tl.addEventListener("pointerdown", e => {
-  if (e.target.closest(".find")) return;
-  dragging = true; tl.setPointerCapture(e.pointerId); video.pause();
-  setAt(fromPointer(e)); video.currentTime = at;
-});
-tl.addEventListener("pointermove", e => { if (dragging) { setAt(fromPointer(e)); video.currentTime = at; } });
-tl.addEventListener("pointerup", () => { dragging = false; });
-tl.addEventListener("keydown", e => {
-  const step = { ArrowLeft: -1, ArrowRight: 1, PageDown: -5, PageUp: 5 }[e.key];
-  if (step === undefined) return;
-  e.preventDefault(); video.pause(); setAt(at + step); video.currentTime = at;
-});
-video.addEventListener("timeupdate", () => { if (!dragging && !video.paused) setAt(video.currentTime); });
-const playPath = { play: "M8 5v14l11-7z", pause: "M7 5h3v14H7zM14 5h3v14h-3z" };
-video.addEventListener("play", () => { $("play-icon").setAttribute("d", playPath.pause); $("play").setAttribute("aria-label", "Pause"); });
-video.addEventListener("pause", () => { $("play-icon").setAttribute("d", playPath.play); $("play").setAttribute("aria-label", "Play"); });
-$("play").addEventListener("click", () => video.paused ? video.play() : video.pause());
-$("undo").addEventListener("click", async () => {
-  busy("Undoing…");
-  try { show(await api(`/edits/${edit.id}/undo`, { method: "POST" }), at); } catch (err) { alert(err.message); } finally { busy(""); }
-});
-
-// ---- search -------------------------------------------------------------------
+// ---- search ------------------------------------------------------------------------------------
 const dlg = $("dlg");
+let editing = null, draft = null;      // editing: the insert being changed (null = a new one)
+async function api(url) {
+  const r = await fetch(url);
+  if (r.status === 401) { location.href = "/login"; throw new Error("sign in"); }
+  if (!r.ok) throw new Error(`Search failed (${r.status})`);
+  return r.json();
+}
+function step(name) { $("step-search").hidden = name !== "search"; $("step-edit").hidden = name !== "edit"; if (name !== "edit") mv.pause(); }
 $("find").addEventListener("click", () => {
-  video.pause(); step("search"); dlg.showModal(); $("mq").focus(); if (!$("results").children.length) search("");
+  pause(); editing = null; step("search"); dlg.showModal(); $("mq").focus();
+  if (!$("results").children.length) search("");
 });
-function step(name) { $("step-search").hidden = name !== "search"; $("step-edit").hidden = name !== "edit"; }
 let timer, ticket = 0;
 $("mq").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => search($("mq").value), 300); });
 $("mq").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); clearTimeout(timer); search($("mq").value); } });
@@ -326,94 +519,147 @@ async function search(q) {
     b.querySelector("span").textContent = c.title || c.caption || "Untitled";
     b.addEventListener("pointerenter", () => v.play().catch(() => {}));
     b.addEventListener("pointerleave", () => v.pause());
-    b.addEventListener("click", () => choose(c));
+    b.addEventListener("click", () => startDraft({ id: c.id, url: c.url, thumb: c.thumb, title: c.title || c.caption || "" }));
     box.append(b);
   }
 }
 
-// ---- crop + look ----------------------------------------------------------------
-const mv = $("mvideo"), sel = $("sel"), box = $("cropbox");
-for (const k of Object.keys(LOOKS)) {
+// ---- trim, crop, effect ------------------------------------------------------------------------
+const mv = $("mvideo"), sel = $("sel"), box = $("cropbox"), fx = $("fx"), fxc = fx.getContext("2d");
+let ratio = null;
+for (const k of Object.keys(EFFECTS)) {
   const b = document.createElement("button");
-  b.className = "chip"; b.type = "button"; b.dataset.look = k; b.textContent = NAMES[k];
-  b.setAttribute("aria-pressed", k === "none");
-  b.addEventListener("click", () => setLook(k));
-  $("looks").append(b);
+  b.className = "chip"; b.type = "button"; b.dataset.fx = k; b.textContent = EFFECTS[k];
+  b.addEventListener("click", () => { draft.effect = k; paintChips(); });
+  $("effects").append(b);
 }
-function setLook(k) {
-  look = k; mv.style.filter = LOOKS[k];
-  $("looks").querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.look === k));
+function paintChips() {
+  $("effects").querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.fx === draft.effect));
 }
-function choose(c) {
-  clip = c; crop = { x: 0, y: 0, w: 1, h: 1 }; ratio = null; setLook("none"); $("err").textContent = "";
+function startDraft(clip) {
+  editing = null;
+  draft = { clip, in: 0, out: 0, crop: { x: 0, y: 0, w: 1, h: 1 }, effect: "none" };
+  showEdit(true);
+}
+function openEdit(ins) {
+  pause(); editing = ins; draft = JSON.parse(JSON.stringify(ins));
+  dlg.showModal(); showEdit(false);
+}
+function showEdit(fresh) {
+  ratio = null; $("err").textContent = "";
   document.querySelectorAll("[data-ar]").forEach(b => b.setAttribute("aria-pressed", b.dataset.ar === "free"));
-  mv.src = c.url;
-  mv.addEventListener("loadedmetadata", () => { box.style.setProperty("--mar", `${mv.videoWidth} / ${mv.videoHeight}`); drawSel(); }, { once: true });
-  $("insert").textContent = `Insert at ${fmtAt(snap(at))}`;
+  $("remove").hidden = !editing; $("back").hidden = !!editing;
+  $("save").textContent = editing ? "Save" : `Add at ${fmtAt(cur)}`;
+  paintChips();
+  mv.src = draft.clip.url;
+  mv.addEventListener("loadedmetadata", () => {
+    box.style.setProperty("--mar", `${mv.videoWidth} / ${mv.videoHeight}`);
+    fx.width = mv.videoWidth; fx.height = mv.videoHeight;
+    for (const r of [$("tin"), $("tout")]) r.max = mv.duration.toFixed(2);
+    if (fresh) draft.out = mv.duration;
+    $("tin").value = draft.in; $("tout").value = draft.out; paintTrim();
+    mv.currentTime = draft.in; mv.play().catch(() => {}); drawSel();
+  }, { once: true });
   step("edit");
 }
-$("back").addEventListener("click", () => { mv.pause(); step("search"); });
-function drawSel() {
-  Object.assign(sel.style, { left: `${crop.x * 100}%`, top: `${crop.y * 100}%`, width: `${crop.w * 100}%`, height: `${crop.h * 100}%` });
+$("back").addEventListener("click", () => step("search"));
+$("close-edit").addEventListener("click", () => dlg.close());
+// the preview loops the trimmed part and draws the effect over it
+(function preview() {
+  requestAnimationFrame(preview);
+  if (!dlg.open || $("step-edit").hidden || !draft) return;
+  if (mv.currentTime >= draft.out - .03 || mv.currentTime < draft.in - .2) mv.currentTime = draft.in;
+  fxc.clearRect(0, 0, fx.width, fx.height);
+  drawEffect(fxc, draft.effect, mv.currentTime - draft.in, fx.width, fx.height, (editing?.id ?? nextId) * 7919);
+})();
+function paintTrim() {
+  const d = mv.duration || 1;
+  $("trim-fill").style.left = `${draft.in / d * 100}%`; $("trim-fill").style.right = `${100 - draft.out / d * 100}%`;
+  $("trim-val").textContent = `${draft.in.toFixed(1)}s – ${draft.out.toFixed(1)}s · ${(draft.out - draft.in).toFixed(1)}s`;
 }
-// crop shape: a ratio in screen pixels, turned into the box's fractions
+$("tin").addEventListener("input", e => { draft.in = Math.min(+e.target.value, draft.out - .3); e.target.value = draft.in; mv.currentTime = draft.in; paintTrim(); });
+$("tout").addEventListener("input", e => { draft.out = Math.max(+e.target.value, draft.in + .3); e.target.value = draft.out; mv.currentTime = Math.max(draft.in, draft.out - 1); paintTrim(); });
+function drawSel() {
+  const c = draft.crop;
+  Object.assign(sel.style, { left: `${c.x * 100}%`, top: `${c.y * 100}%`, width: `${c.w * 100}%`, height: `${c.h * 100}%` });
+}
 function fitRatio(r) {
   const bw = box.clientWidth, bh = box.clientHeight;
   let w = bw, h = bw / r; if (h > bh) { h = bh; w = bh * r; }
-  crop = { w: w / bw, h: h / bh, x: (1 - w / bw) / 2, y: (1 - h / bh) / 2 };
+  draft.crop = { w: w / bw, h: h / bh, x: (1 - w / bw) / 2, y: (1 - h / bh) / 2 };
 }
 document.querySelectorAll("[data-ar]").forEach(b => b.addEventListener("click", () => {
   const v = b.dataset.ar;
-  ratio = v === "video" ? edit.width / edit.height : v === "1" ? 1 : null;
-  if (v === "reset") crop = { x: 0, y: 0, w: 1, h: 1 }; else if (ratio) fitRatio(ratio);
-  document.querySelectorAll("[data-ar]").forEach(o => o.setAttribute("aria-pressed", o === b && v !== "reset" || (v === "reset" && o.dataset.ar === "free")));
+  ratio = v === "video" ? W / H : v === "1" ? 1 : null;
+  if (v === "reset") draft.crop = { x: 0, y: 0, w: 1, h: 1 }; else if (ratio) fitRatio(ratio);
+  document.querySelectorAll("[data-ar]").forEach(o => o.setAttribute("aria-pressed", v === "reset" ? o.dataset.ar === "free" : o === b));
   drawSel();
 }));
-let drag = null;
+let cdrag = null;
 sel.addEventListener("pointerdown", e => {
   e.preventDefault(); sel.setPointerCapture(e.pointerId);
-  drag = { mode: e.target === $("grip") ? "size" : "move", x: e.clientX, y: e.clientY, start: { ...crop } };
+  cdrag = { mode: e.target === $("grip") ? "size" : "move", x: e.clientX, y: e.clientY, start: { ...draft.crop } };
 });
 sel.addEventListener("pointermove", e => {
-  if (!drag) return;
-  const dx = (e.clientX - drag.x) / box.clientWidth, dy = (e.clientY - drag.y) / box.clientHeight, s = drag.start;
-  if (drag.mode === "move") {
-    crop.x = Math.min(Math.max(0, s.x + dx), 1 - s.w); crop.y = Math.min(Math.max(0, s.y + dy), 1 - s.h);
+  if (!cdrag) return;
+  const dx = (e.clientX - cdrag.x) / box.clientWidth, dy = (e.clientY - cdrag.y) / box.clientHeight, s = cdrag.start, c = draft.crop;
+  if (cdrag.mode === "move") {
+    c.x = Math.min(Math.max(0, s.x + dx), 1 - s.w); c.y = Math.min(Math.max(0, s.y + dy), 1 - s.h);
   } else {
     let w = Math.min(Math.max(.1, s.w + dx), 1 - s.x), h = Math.min(Math.max(.1, s.h + dy), 1 - s.y);
-    if (ratio) {          // keep the chosen shape: height follows width, within the frame
-      const k = box.clientWidth / box.clientHeight / ratio;
-      h = w * k; if (h > 1 - s.y) { h = 1 - s.y; w = h / k; }
-    }
-    crop.w = w; crop.h = h;
+    if (ratio) { const k = box.clientWidth / box.clientHeight / ratio; h = w * k; if (h > 1 - s.y) { h = 1 - s.y; w = h / k; } }
+    c.w = w; c.h = h;
   }
   drawSel();
 });
-sel.addEventListener("pointerup", () => { drag = null; });
+sel.addEventListener("pointerup", () => { cdrag = null; });
 
-$("insert").addEventListener("click", async () => {
-  const cut = snap(at);
-  $("err").textContent = ""; $("insert").disabled = true;
-  dlg.close(); mv.pause(); busy(`Adding “${clip.title || "meme"}” at ${fmtAt(cut)}…`);
-  const r = v => Math.round(v * 1000) / 1000;
-  try {
-    show(await api(`/edits/${edit.id}/insert`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clip_id: clip.id, at, filter: look, crop: { x: r(crop.x), y: r(crop.y), w: r(crop.w), h: r(crop.h) } }),
-    }), cut);
-    video.play().catch(() => {});
-  } catch (err) { dlg.showModal(); step("edit"); $("err").textContent = err.message; }
-  finally { busy(""); $("insert").disabled = false; }
+$("save").addEventListener("click", () => {
+  snapshot();
+  if (editing) Object.assign(editing, { in: draft.in, out: draft.out, crop: draft.crop, effect: draft.effect });
+  else inserts.push({ ...draft, id: nextId, n: nextId++, at: mainTimeAt(cur) });
+  dlg.close(); changed();
+});
+$("remove").addEventListener("click", () => {
+  snapshot(); inserts = inserts.filter(i => i !== editing); dlg.close(); changed();
 });
 dlg.addEventListener("close", () => mv.pause());
 
-// resume an edit from the address (#<id>)
-if (location.hash.length > 1) {
-  busy("Loading…"); $("drop").hidden = true; $("editor").hidden = false;
-  api(`/edits/${location.hash.slice(1)}`).then(e => show(e))
-    .catch(() => { history.replaceState(null, "", "/edit"); $("drop").hidden = false; $("editor").hidden = true; })
-    .finally(() => busy(""));
+// ---- export: play the composition once, recording the screen and the sound ----------------------
+let ac = null, speaker = null, recDest = null;
+function hookAudio(el) {
+  if (!ac || el._hooked) return;
+  const s = ac.createMediaElementSource(el); s.connect(speaker); s.connect(recDest); el._hooked = true;
 }
+function startAudio() {
+  if (ac) return;
+  ac = new AudioContext(); speaker = ac.createGain(); speaker.connect(ac.destination); recDest = ac.createMediaStreamDestination();
+  [main, ...Object.values(memeEls)].forEach(hookAudio);
+}
+const TYPES = ["video/mp4;codecs=avc1.42E01E,mp4a.40.2", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm"];
+$("export").addEventListener("click", async () => {
+  const type = TYPES.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t));
+  if (!type) return alert("This browser can't export video. Try Chrome or Safari.");
+  startAudio(); await ac.resume();
+  pause(); cur = 0; build(); seek(0); await once(segs[0].el, "seeked").catch(() => {});
+  draw();
+  const stream = new MediaStream([...screen.captureStream(30).getVideoTracks(), ...recDest.stream.getAudioTracks()]);
+  const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 6e6 }), chunks = [];
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  const done = new Promise(ok => { rec.onstop = ok; });
+  speaker.gain.value = 0;                       // record without playing it out loud
+  const progress = setInterval(() => busy(`Exporting… ${Math.round(cur / total * 100)}%`, "Keep this tab open and in front"), 250);
+  rec.start(500);
+  onEnd = () => rec.stop();
+  play();
+  await done;
+  clearInterval(progress); onEnd = null; speaker.gain.value = 1; busy("");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(chunks, { type }));
+  a.download = `memeclip-edit.${type.includes("mp4") ? "mp4" : "webm"}`;
+  a.click();
+  $("hint").textContent = `Exported ${a.download}. Check your downloads.`;
+});
 </script>
 </body>
 </html>

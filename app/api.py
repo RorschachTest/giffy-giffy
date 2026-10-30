@@ -14,7 +14,7 @@
     POST  /upload               drop a clip into the inbox from the browser
     GET   /media/...            the clip files
     GET   /c/{share_id}         share link: video page that chat apps unfurl (share.py)
-    GET   /edit, /edits/...     meme insert editor: drop clips into your own video (edit.py)
+    GET   /edit                 meme insert editor (runs in the browser; the server only serves the page)
     GET   /clips/{id}/humor     why the clip is funny on its own (understand.py)
     POST  /understand           what a meme says sent after some chat messages, and why it is funny
     POST  /understand/feedback  what it really meant / whether it landed: the engine learns from it
@@ -36,7 +36,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from . import auth, config, db, edit as edit_mod, faces, indexing, intent, laya, search as search_mod, share as share_mod, storage, understand as und
+from . import auth, config, db, faces, indexing, intent, laya, search as search_mod, share as share_mod, storage, understand as und
 from .embed import get_embedder
 
 STATIC = Path(__file__).with_name("static")
@@ -121,7 +121,6 @@ def media_file(key: str, request: Request):
 
 
 app.include_router(share_mod.router)
-app.include_router(edit_mod.router)
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
 
 
