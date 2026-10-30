@@ -47,21 +47,22 @@
   .btn.danger { color: var(--danger); }
   .btn.round { width: 44px; padding: 0; justify-content: center; }
 
-  /* timeline: your video's filmstrip, cut where memes go in; memes are yellow blocks you can drag */
+  /* timeline, two rows on one time scale (the combined video): the filmstrip on top is only for
+     scrubbing; the lane under it holds one chip per meme, to drag (move) or click (edit) */
   .tl { position: relative; margin-top: 46px; touch-action: none; user-select: none; }
   .track { display: flex; height: 72px; border-radius: 14px; overflow: hidden; border: 1px solid var(--hair);
            background: var(--core); cursor: ew-resize; }
   .seg { height: 100%; flex: none; background-repeat: no-repeat; position: relative; }
   .seg.main::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 55%, rgba(0, 0, 0, .5)); }
-  .seg.meme { background: #2a2410 left / auto 100% repeat-x; outline: 2px solid var(--subtitle); outline-offset: -2px;
-              border-radius: 8px; cursor: grab; z-index: 1; box-shadow: 0 0 0 1px rgba(0, 0, 0, .6); }
-  .seg.meme:hover { filter: brightness(1.15); }
-  .seg.meme.moving { cursor: grabbing; opacity: .85; outline-style: dashed; }
-  .seg.meme span { position: absolute; left: 6px; bottom: 5px; max-width: calc(100% - 12px); font-size: 11px; font-weight: 600;
-                   color: #111; background: var(--subtitle); border-radius: 6px; padding: 1px 6px; white-space: nowrap;
-                   overflow: hidden; text-overflow: ellipsis; }
-  .seg.meme b { position: absolute; top: 4px; right: 5px; font-size: 11px; color: #111; background: var(--subtitle);
-                border-radius: 999px; padding: 0 5px; font-weight: 600; }
+  .seg.meme { background: #2a2410 left / auto 100% repeat-x; box-shadow: inset 0 -3px 0 var(--subtitle); }
+  .lane { position: relative; height: 34px; margin-top: 8px; border-radius: 10px; background: var(--tray); cursor: ew-resize; }
+  .chipm { position: absolute; top: 0; bottom: 0; min-width: 26px; display: flex; align-items: center; gap: 6px; padding: 0 8px;
+           border-radius: 10px; background: var(--subtitle); color: #111; font-size: 12px; font-weight: 600; cursor: grab;
+           white-space: nowrap; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, .4); z-index: 1; }
+  .chipm:hover { filter: brightness(1.08); }
+  .chipm.moving { cursor: grabbing; opacity: .85; outline: 2px dashed #111; outline-offset: -4px; }
+  .chipm span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .chipm em { min-width: 0; overflow: hidden; flex-shrink: 20; font-style: normal; font-weight: 500; opacity: .7; }   /* title wins */
   .head { position: absolute; top: -10px; bottom: -10px; width: 2px; margin-left: -1px; background: var(--cream);
           z-index: 3; pointer-events: none; box-shadow: 0 0 12px rgba(244, 237, 228, .5); }
   .head::before { content: ""; position: absolute; top: -2px; left: 50%; width: 14px; height: 14px; margin-left: -7px;
@@ -140,7 +141,7 @@
   <div>
     <h1>Drop a meme into your video</h1>
     <p class="intro">Drag along the timeline to the moment, tap the search, pick a clip, trim and crop it, add an effect.
-      Drag a meme on the timeline to move it. Nothing is joined until you export, and your video never leaves this browser.</p>
+      Drag a meme's yellow chip under the timeline to move it. Nothing is joined until you export, and your video never leaves this browser.</p>
   </div>
 
   <label class="drop" id="drop">
@@ -162,6 +163,7 @@
         <span id="find-label">Add meme</span>
       </button>
       <div class="track" id="track" role="slider" tabindex="0" aria-label="Timeline" aria-valuemin="0"></div>
+      <div class="lane" id="lane" aria-label="Memes: drag to move, click to edit"></div>
       <div class="head" id="head"></div>
     </div>
     <div class="ticks"><span>0:00</span><span id="end-tick"></span></div>
@@ -369,9 +371,9 @@ function drawEffect(c, kind, t, w, h, seed) {
 }
 
 // ---- timeline ----------------------------------------------------------------------------------
-const track = $("track");
+const track = $("track"), lane = $("lane");
 function renderTimeline() {
-  track.replaceChildren();
+  track.replaceChildren(); lane.replaceChildren();
   for (const g of segs) {
     const d = document.createElement("div");
     d.className = `seg ${g.kind}`; d.style.width = `${(g.c1 - g.c0) / total * 100}%`;
@@ -383,11 +385,15 @@ function renderTimeline() {
       d.style.backgroundPosition = mainDur - len > .01 ? `${g.s / (mainDur - len) * 100}% 0` : "0 0";
     } else {
       if (g.ins.clip.thumb) d.style.backgroundImage = `url("${g.ins.clip.thumb}")`;
-      d.dataset.id = g.ins.id;
-      d.innerHTML = `<span></span>${g.ins.effect !== "none" ? "<b></b>" : ""}`;
-      d.querySelector("span").textContent = g.ins.clip.title || "meme";
-      if (g.ins.effect !== "none") d.querySelector("b").textContent = EFFECTS[g.ins.effect];
-      d.title = "Drag to move · click to edit";
+      const chip = document.createElement("button");
+      chip.type = "button"; chip.className = "chipm"; chip.dataset.id = g.ins.id;
+      chip.style.left = `${g.c0 / total * 100}%`; chip.style.width = `${(g.c1 - g.c0) / total * 100}%`;
+      chip.innerHTML = "<span></span><em></em>";
+      chip.firstChild.textContent = g.ins.clip.title || "meme";
+      chip.lastChild.textContent = g.ins.effect !== "none" ? EFFECTS[g.ins.effect] : "";
+      chip.title = `${g.ins.clip.title || "meme"} · drag to move, click to edit`;
+      chip.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(g.ins); } });
+      lane.append(chip);
     }
     track.append(d);
   }
@@ -395,7 +401,7 @@ function renderTimeline() {
   $("end-tick").textContent = fmt(total);
   $("export").disabled = !inserts.length;
   $("hint").textContent = inserts.length
-    ? `${inserts.length} meme${inserts.length > 1 ? "s" : ""} added. Drag one to move it, click it to change it. Export joins everything.`
+    ? `${inserts.length} meme${inserts.length > 1 ? "s" : ""} added. Drag a yellow chip under the timeline to move it, click it to change it. Export joins everything.`
     : "Drag the timeline to the moment you want, then tap “Add meme”.";
 }
 function drawHead() {
@@ -410,9 +416,11 @@ function changed() { const was = playing; pause(); build(); renderTimeline(); se
 const atPointer = e => { const r = track.getBoundingClientRect(); return Math.min(Math.max(0, (e.clientX - r.left) / r.width), 1) * total; };
 
 let drag = null;
-track.addEventListener("pointerdown", e => {
-  const block = e.target.closest(".seg.meme");
-  track.setPointerCapture(e.pointerId);
+const tl = $("tl");
+tl.addEventListener("pointerdown", e => {
+  if (e.target.closest(".find")) return;
+  const block = e.target.closest(".chipm");
+  tl.setPointerCapture(e.pointerId);
   if (block) {
     const ins = inserts.find(i => i.id === +block.dataset.id);
     const g = segs.find(s => s.ins === ins);
@@ -421,17 +429,17 @@ track.addEventListener("pointerdown", e => {
   }
   drag = { kind: "scrub" }; pause(); seek(atPointer(e)); draw();
 });
-track.addEventListener("pointermove", e => {
+tl.addEventListener("pointermove", e => {
   if (!drag) return;
   if (drag.kind === "scrub") { seek(atPointer(e)); return; }
   if (!drag.moved && Math.abs(e.clientX - drag.x) < 5) return;
   if (!drag.moved) { drag.moved = true; pause(); }
   drag.ins.at = mainTimeAt(Math.max(0, atPointer(e) - drag.grab), drag.ins.id);
   build(); renderTimeline();
-  track.querySelector(`[data-id="${drag.ins.id}"]`)?.classList.add("moving");
+  lane.querySelector(`[data-id="${drag.ins.id}"]`)?.classList.add("moving");
   const g = segs.find(s => s.ins === drag.ins); if (g) seek(g.c0);
 });
-track.addEventListener("pointerup", () => {
+tl.addEventListener("pointerup", () => {
   const d = drag; drag = null;
   if (d?.kind !== "move") return;
   if (d.moved) { undoStack.push(d.before); $("undo").disabled = false; changed(); }
