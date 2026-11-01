@@ -14,6 +14,7 @@
     POST  /upload               drop a clip into the inbox from the browser
     GET   /media/...            the clip files
     GET   /c/{share_id}         share link: video page that chat apps unfurl (share.py)
+    GET   /edit                 meme insert editor (runs in the browser; the server only serves the page)
     GET   /clips/{id}/humor     why the clip is funny on its own (understand.py)
     POST  /understand           what a meme says sent after some chat messages, and why it is funny
     POST  /understand/feedback  what it really meant / whether it landed: the engine learns from it
@@ -93,7 +94,7 @@ async def require_sign_in(request: Request, call_next):
     request.state.user = user
     if auth.allowed(user, need):
         return await call_next(request)
-    if request.method == "GET" and request.url.path == "/":
+    if request.method == "GET" and request.url.path in ("/", "/edit"):
         state = "" if user is None else f"?state={user['status']}"
         return RedirectResponse("/login" + state, status_code=303)
     if user is None:
@@ -155,6 +156,11 @@ def _themed_page(name: str, theme: str | None, me: dict | None = None) -> HTMLRe
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, theme: str | None = None) -> HTMLResponse:
     return _themed_page("index.html", theme, _me(request))
+
+
+@app.get("/edit", response_class=HTMLResponse)
+def edit_page(theme: str | None = None) -> HTMLResponse:
+    return _themed_page("edit.html", theme)
 
 
 # --------------------------------------------------------------------------- #
